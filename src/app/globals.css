@@ -1,8 +1,14 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #fbf7f5;
+  --foreground: #281815;
+  --brand: #c9232b;
+  --brand-dark: #8f1820;
+  --brand-light: #fbe8e5;
+  --muted: #806d68;
+  --line: #eadbd7;
+  --brown: #4b2b25;
 }
 
 @theme inline {
@@ -12,15 +18,86 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+  margin: 0;
+}
+
+.app-shell { min-height: 100vh; display: flex; }
+.sidebar {
+  background: #fff; border-right: 3px solid var(--brand); border-radius: 0 0 10px 0;
+  box-shadow: 2px 0 12px rgba(75, 43, 37, .08); display: flex; flex: 0 0 130px;
+  flex-direction: column; align-items: center; min-height: 100vh; padding: 36px 0 22px;
+}
+.sidebar-logo { display: block; line-height: 0; }
+.sidebar-logo img { border-radius: 50%; object-fit: cover; }
+.sidebar-nav { display: flex; flex: 1; flex-direction: column; gap: 30px; justify-content: center; width: 100%; }
+.sidebar-link {
+  align-items: center; color: #929591; display: flex; flex-direction: column; font-size: 10px;
+  gap: 5px; margin: 0 auto; padding: 8px 2px; text-decoration: none; transition: color .2s ease;
+  width: 74px;
+}
+.sidebar-link svg { height: 32px; width: 32px; }
+.sidebar-link:hover, .sidebar-link-active { color: var(--brand); }
+.sidebar-link-active { font-weight: 700; }
+.app-content { flex: 1; min-width: 0; }
+.dashboard-page { margin: 0 auto; max-width: 1120px; padding: 62px 64px 80px; }
+.dashboard-with-brand-bg { max-width: none; min-height: 100vh; overflow: hidden; padding-left: max(64px, calc((100vw - 1120px) / 2)); padding-right: max(64px, calc((100vw - 1120px) / 2)); position: relative; }
+.dashboard-with-brand-bg::before {
+  background: url("/identidade_coca-3.jpg") center bottom / cover no-repeat;
+  content: ""; inset: 0; opacity: .05; pointer-events: none; position: absolute;
+}
+.dashboard-with-brand-bg > * { position: relative; z-index: 1; }
+.page-header { align-items: flex-end; display: flex; justify-content: space-between; gap: 32px; }
+.eyebrow { color: var(--brand-dark); font-size: 11px; font-weight: 700; letter-spacing: .16em; margin: 0 0 12px; }
+h1 { font-size: clamp(32px, 4vw, 44px); letter-spacing: -.04em; line-height: 1; margin: 0; }
+.page-subtitle { color: var(--muted); font-size: 15px; margin: 14px 0 0; }
+.button { align-items: center; border-radius: 8px; display: inline-flex; font-size: 14px; font-weight: 700; gap: 12px; justify-content: center; padding: 14px 20px; text-decoration: none; transition: transform .2s, box-shadow .2s; }
+.button:hover { box-shadow: 0 7px 18px rgba(143, 24, 32, .2); transform: translateY(-1px); }
+.button-primary { background: var(--brand); color: white; }
+.button-secondary { background: var(--brand-dark); color: white; margin-top: 22px; }
+.dashboard-card { align-items: center; background: #fff; border: 1px solid var(--line); border-radius: 18px; display: flex; gap: 84px; margin-top: 52px; min-height: 430px; padding: 58px 11%;  }
+.dashboard-visual { border-radius: 14px; flex: 0 0 38%; height: 315px; overflow: hidden; position: relative; }
+.dashboard-visual::after { background: linear-gradient(180deg, transparent 45%, rgba(40, 24, 21, .75)); content: ""; inset: 0; position: absolute; }
+.dashboard-visual img { object-fit: cover; }
+.dashboard-visual-caption { bottom: 22px; color: #fff; font-size: 16px; font-weight: 700; left: 22px; position: absolute; z-index: 1; }
+.empty-state-copy { max-width: 445px; }
+.empty-state-kicker { color: var(--brand-dark); font-size: 13px; font-weight: 700; margin: 0 0 14px; }
+.empty-state-copy h2, .insert-placeholder h2 { font-size: clamp(24px, 3vw, 32px); letter-spacing: -.03em; line-height: 1.12; margin: 0; }
+.empty-state-copy p:not(.empty-state-kicker), .insert-placeholder p { color: var(--muted); font-size: 16px; line-height: 1.65; margin: 18px 0 0; }
+.empty-chart { height: 185px; min-width: 215px; position: relative; width: 215px; }
+.empty-chart-axis { background: #e5cfca; position: absolute; }
+.empty-chart-axis-x { bottom: 18px; height: 2px; left: 5px; right: 0; }
+.empty-chart-axis-y { bottom: 18px; height: 160px; left: 5px; width: 2px; }
+.empty-chart-line { border-top: 3px dashed #d6928d; height: 100px; left: 31px; position: absolute; top: 38px; transform: rotate(-20deg); width: 160px; }
+.empty-chart-dot { background: var(--brand); border: 5px solid #f5d9d5; border-radius: 50%; height: 13px; position: absolute; width: 13px; }
+.empty-chart-dot-one { left: 26px; top: 123px; }
+.empty-chart-dot-two { left: 96px; top: 94px; }
+.empty-chart-dot-three { right: 5px; top: 42px; }
+.insert-placeholder { gap: 48px; justify-content: space-between; }
+.insert-content { max-width: 430px; }
+.insert-placeholder-icon { align-items: center; background: var(--brand-light); border-radius: 50%; color: var(--brand-dark); display: flex; font-size: 36px; height: 74px; justify-content: center; margin-bottom: 12px; width: 74px; }
+.insert-placeholder p { margin-top: 2px; }
+.insert-visual { height: 310px; min-width: 220px; overflow: hidden; position: relative; }
+.insert-visual img { object-fit: contain; object-position: center bottom; }
+.table-empty-state { gap: 84px; }
+.table-visual { height: 290px; min-width: 220px; overflow: hidden; position: relative; }
+.table-visual img { object-fit: contain; object-position: center; }
+
+@media (max-width: 700px) {
+  .sidebar { flex-basis: 76px; padding-top: 22px; }
+  .sidebar-logo img { height: 52px; width: auto; }
+  .sidebar-nav { gap: 12px; }
+  .sidebar-link { width: 60px; }
+  .sidebar-link span { display: none; }
+  .dashboard-page { padding: 38px 22px 56px; }
+  .dashboard-with-brand-bg { padding-left: 22px; padding-right: 22px; }
+  .page-header { align-items: flex-start; flex-direction: column; }
+  .button-primary { align-self: stretch; }
+  .dashboard-card { flex-direction: column; gap: 32px; margin-top: 36px; padding: 42px 26px; text-align: center; }
+  .dashboard-visual, .insert-visual, .table-visual { flex-basis: auto; height: 240px; min-width: 100%; width: 100%; }
+  .insert-content { align-items: center; display: flex; flex-direction: column; }
+  .empty-chart { transform: scale(.82); }
 }
