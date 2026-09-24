@@ -63,6 +63,11 @@ h1 { font-size: clamp(32px, 4vw, 44px); letter-spacing: -.04em; line-height: 1; 
 .dashboard-visual::after { background: linear-gradient(180deg, transparent 45%, rgba(40, 24, 21, .75)); content: ""; inset: 0; position: absolute; }
 .dashboard-visual img { object-fit: cover; }
 .dashboard-visual-caption { bottom: 22px; color: #fff; font-size: 16px; font-weight: 700; left: 22px; position: absolute; z-index: 1; }
+.dashboard-chart-card { background: #fff; border: 1px solid var(--line); border-radius: 18px; margin-top: 52px; padding: 34px 42px 30px; }
+.chart-heading { align-items: center; display: flex; justify-content: space-between; gap: 24px; }
+.chart-heading h2 { font-size: clamp(24px, 3vw, 32px); letter-spacing: -.03em; margin: 0; }
+.chart-heading p:not(.empty-state-kicker) { color: var(--muted); font-size: 14px; margin: 10px 0 0; }
+.chart-container { height: 340px; margin-top: 25px; width: 100%; }
 .empty-state-copy { max-width: 445px; }
 .empty-state-kicker { color: var(--brand-dark); font-size: 13px; font-weight: 700; margin: 0 0 14px; }
 .empty-state-copy h2, .insert-placeholder h2 { font-size: clamp(24px, 3vw, 32px); letter-spacing: -.03em; line-height: 1.12; margin: 0; }
@@ -77,11 +82,28 @@ h1 { font-size: clamp(32px, 4vw, 44px); letter-spacing: -.04em; line-height: 1; 
 .empty-chart-dot-two { left: 96px; top: 94px; }
 .empty-chart-dot-three { right: 5px; top: 42px; }
 .insert-placeholder { gap: 48px; justify-content: space-between; }
+.import-card { gap: 48px; justify-content: space-between; }
 .insert-content { max-width: 430px; }
 .insert-placeholder-icon { align-items: center; background: var(--brand-light); border-radius: 50%; color: var(--brand-dark); display: flex; font-size: 36px; height: 74px; justify-content: center; margin-bottom: 12px; width: 74px; }
 .insert-placeholder p { margin-top: 2px; }
 .insert-visual { height: 310px; min-width: 220px; overflow: hidden; position: relative; }
 .insert-visual img { object-fit: contain; object-position: center bottom; }
+.file-picker { align-items: center; border: 1px dashed #c88d88; border-radius: 8px; color: var(--brand-dark); cursor: pointer; display: flex; font-size: 14px; justify-content: center; margin-top: 22px; min-height: 48px; padding: 0 16px; text-align: center; }
+.file-picker:hover { background: var(--brand-light); }
+.file-picker input { display: none; }
+.import-button { border: 0; cursor: pointer; margin-top: 12px; }
+.import-button:disabled { cursor: wait; opacity: .65; }
+.import-error, .import-success { font-size: 13px !important; line-height: 1.4 !important; margin-top: 14px !important; }
+.import-error { color: var(--brand-dark) !important; }
+.import-success { color: #5f483e !important; }
+.import-preview { background: #fff; border: 1px solid var(--line); border-radius: 18px; margin-top: 28px; max-height: 520px; overflow-x: hidden; overflow-y: auto; }
+.preview-header { align-items: center; background: #fff; display: flex; justify-content: space-between; padding: 22px 28px; position: sticky; top: 0; z-index: 1; }
+.preview-header h2 { font-size: 20px; margin: 0; }
+.preview-header span { color: var(--muted); font-size: 13px; }
+.preview-scroll { max-width: 100%; overflow-x: auto; }
+.import-preview table { border-collapse: collapse; min-width: 100%; text-align: left; }
+.import-preview th, .import-preview td { border-top: 1px solid var(--line); font-size: 13px; max-width: 260px; padding: 13px 18px; white-space: nowrap; }
+.import-preview th { background: #fff9f7; color: var(--brand-dark); font-weight: 700; }
 .table-empty-state { gap: 84px; }
 .table-visual { height: 290px; min-width: 220px; overflow: hidden; position: relative; }
 .table-visual img { object-fit: contain; object-position: center; }
@@ -97,7 +119,11 @@ h1 { font-size: clamp(32px, 4vw, 44px); letter-spacing: -.04em; line-height: 1; 
   .page-header { align-items: flex-start; flex-direction: column; }
   .button-primary { align-self: stretch; }
   .dashboard-card { flex-direction: column; gap: 32px; margin-top: 36px; padding: 42px 26px; text-align: center; }
+  .dashboard-chart-card { margin-top: 36px; padding: 30px 20px 20px; }
+  .chart-heading { align-items: flex-start; flex-direction: column; }
+  .chart-heading .button { align-self: stretch; }
   .dashboard-visual, .insert-visual, .table-visual { flex-basis: auto; height: 240px; min-width: 100%; width: 100%; }
+  .import-card { gap: 32px; }
   .insert-content { align-items: center; display: flex; flex-direction: column; }
   .empty-chart { transform: scale(.82); }
 }
