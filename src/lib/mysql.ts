@@ -1,6 +1,7 @@
 import mysql, { type ResultSetHeader, type RowDataPacket } from "mysql2/promise";
 
 type ImportedRow = Record<string, unknown>;
+const FALLBACK_IMPORT_TABLE_NAME = "import_dados";
 
 const identifier = (value: string) =>
   `\`${value.replace(/[^a-zA-Z0-9_]/g, "_").replace(/^(\d)/, "_$1") || "coluna"}\``;
@@ -26,12 +27,6 @@ export async function saveImportedTable(
   columns: string[],
   rows: ImportedRow[],
 ) {
-  const tableName = `import_${requestedTableName
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-zA-Z0-9_]/g, "_")
-    .toLowerCase()
-    .slice(0, 45)}_${Date.now()}`;
   const normalizedColumns = columns.map((column, index) => {
     const base = column
       .normalize("NFD")
@@ -47,15 +42,35 @@ export async function saveImportedTable(
   const pool = mysql.createPool(getConfig());
 
   try {
-    const definitions = uniqueColumns.map((column) => `${identifier(column)} TEXT NULL`).join(", ");
+    const [existingTables] = await pool.query<(RowDataPacket & { table_name: string })[]>(
+      `SELECT TABLE_NAME AS table_name
+       FROM information_schema.TABLES
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME LIKE 'import\\_%'
+       ORDER BY CREATE_TIME ASC
+       LIMIT 1`,
+    );
+    const tableName = existingTables[0]?.table_name || FALLBACK_IMPORT_TABLE_NAME;
+
     await pool.query(
-      `CREATE TABLE ${identifier(tableName)} (
+      `CREATE TABLE IF NOT EXISTS ${identifier(tableName)} (
         \`id\` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-        ${definitions},
         \`created_at\` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (\`id\`)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
     );
+
+    const [existingColumns] = await pool.query<(RowDataPacket & { column_name: string })[]>(
+      `SELECT COLUMN_NAME AS column_name
+       FROM information_schema.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?`,
+      [tableName],
+    );
+    const existingColumnNames = new Set(existingColumns.map(({ column_name }) => column_name));
+    for (const column of uniqueColumns) {
+      if (!existingColumnNames.has(column)) {
+        await pool.query(`ALTER TABLE ${identifier(tableName)} ADD COLUMN ${identifier(column)} TEXT NULL`);
+      }
+    }
 
     if (rows.length > 0) {
       const values = rows.map((row) => uniqueColumns.map((column, index) => {
@@ -70,39 +85,8 @@ export async function saveImportedTable(
       );
     }
 
-    const columnTables: string[] = [];
-    for (let columnIndex = 0; columnIndex < uniqueColumns.length; columnIndex += 1) {
-      const columnTable = uniqueColumns[columnIndex];
-      columnTables.push(columnTable);
-      await pool.query(
-        `CREATE TABLE IF NOT EXISTS ${identifier(columnTable)} (
-          \`registro_id\` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-          \`indice_linha\` INT UNSIGNED NOT NULL,
-          \`valor\` TEXT NULL,
-          \`criado_em\` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-          PRIMARY KEY (\`registro_id\`),
-          INDEX (\`indice_linha\`)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
-      );
-
-      if (rows.length > 0) {
-        const values = rows.map((row, rowIndex) => [
-          rowIndex,
-          row[columns[columnIndex]] === null || row[columns[columnIndex]] === undefined
-            ? null
-            : String(row[columns[columnIndex]]),
-        ]);
-        const placeholders = values.map(() => "(?, ?)").join(", ");
-        await pool.query(
-          `INSERT INTO ${identifier(columnTable)} (\`indice_linha\`, \`valor\`) VALUES ${placeholders}`,
-          values.flat(),
-        );
-      }
-    }
-
     return {
       tableName,
-      tableNames: columnTables,
       columns: uniqueColumns,
       totalRows: rows.length,
     };

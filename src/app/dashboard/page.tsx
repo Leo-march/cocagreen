@@ -70,9 +70,9 @@ export default function DashboardPage() {
     <div className="dashboard-page dashboard-with-brand-bg">
       <header className="page-header">
         <div>
-          <p className="eyebrow">VISÃO GERAL</p>
-          <h1>Dashboard</h1>
-          <p className="page-subtitle">Acompanhe seus indicadores de sustentabilidade.</p>
+          <p className="eyebrow">DASHBOARD</p>
+          <h1>Análises</h1>
+          <p className="page-subtitle">Indicadores de manutenção e falhas</p>
         </div>
         <Link href="/inserirdados" className="button button-primary">Inserir dados</Link>
       </header>
