@@ -64,10 +64,34 @@ h1 { font-size: clamp(32px, 4vw, 44px); letter-spacing: -.04em; line-height: 1; 
 .dashboard-visual img { object-fit: cover; }
 .dashboard-visual-caption { bottom: 22px; color: #fff; font-size: 16px; font-weight: 700; left: 22px; position: absolute; z-index: 1; }
 .dashboard-chart-card { background: #fff; border: 1px solid var(--line); border-radius: 18px; margin-top: 52px; padding: 34px 42px 30px; }
+.pareto-card { width: 100%; }
+.analysis-tabs { border-bottom: 1px solid var(--line); display: flex; gap: 26px; margin: -10px 0 14px; }
+.analysis-tab { color: var(--muted); font-size: 12px; padding: 10px 0; }
+.analysis-tab-active { border-bottom: 2px solid var(--brand-dark); color: var(--brand-dark); font-weight: 700; }
+.analysis-filters { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 22px; }
+.analysis-filters span, .analysis-filters label { align-items: center; border: 1px solid var(--line); border-radius: 7px; color: var(--muted); display: inline-flex; font-size: 11px; gap: 5px; padding: 7px 10px; }
+.analysis-filters strong { color: var(--ink); font-weight: 600; }
+.analysis-filters select { background: transparent; border: 0; color: var(--ink); cursor: pointer; font: inherit; font-weight: 600; outline: 0; }
 .chart-heading { align-items: center; display: flex; justify-content: space-between; gap: 24px; }
 .chart-heading h2 { font-size: clamp(24px, 3vw, 32px); letter-spacing: -.03em; margin: 0; }
 .chart-heading p:not(.empty-state-kicker) { color: var(--muted); font-size: 14px; margin: 10px 0 0; }
 .chart-container { height: 340px; margin-top: 25px; width: 100%; }
+.pareto-card { padding-bottom: 24px; }
+.pareto-layout { align-items: stretch; display: grid; gap: 18px; grid-template-columns: minmax(0, 1fr) 260px; }
+.pareto-chart-container { height: 430px; }
+.pareto-side-panel { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.pareto-insight { background: var(--brand-dark); border-radius: 10px; color: #fff; display: flex; flex-direction: column; gap: 5px; padding: 16px 14px; }
+.pareto-insight p { font-size: 10px; font-weight: 700; letter-spacing: .08em; margin: 0 0 5px; }
+.pareto-insight strong { font-size: 13px; }
+.pareto-insight span { font-size: 12px; line-height: 1.35; }
+.pareto-table-wrap { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.pareto-table { border-collapse: collapse; table-layout: fixed; text-align: left; width: 100%; }
+.pareto-table th, .pareto-table td { border-bottom: 1px solid var(--line); font-size: 10px; padding: 8px 9px; }
+.pareto-table th { background: #fff9f7; color: var(--muted); font-weight: 700; }
+.pareto-table td:first-child { max-width: 135px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pareto-table tr:last-child td { border-bottom: 0; }
+.pareto-summary { border-top: 1px solid var(--line); color: var(--muted); display: flex; font-size: 13px; gap: 24px; justify-content: space-between; margin-top: 8px; padding-top: 16px; }
+.pareto-summary strong { color: var(--brand-dark); }
 .empty-state-copy { max-width: 445px; }
 .empty-state-kicker { color: var(--brand-dark); font-size: 13px; font-weight: 700; margin: 0 0 14px; }
 .empty-state-copy h2, .insert-placeholder h2 { font-size: clamp(24px, 3vw, 32px); letter-spacing: -.03em; line-height: 1.12; margin: 0; }
@@ -120,6 +144,9 @@ h1 { font-size: clamp(32px, 4vw, 44px); letter-spacing: -.04em; line-height: 1; 
   .button-primary { align-self: stretch; }
   .dashboard-card { flex-direction: column; gap: 32px; margin-top: 36px; padding: 42px 26px; text-align: center; }
   .dashboard-chart-card { margin-top: 36px; padding: 30px 20px 20px; }
+  .pareto-layout { grid-template-columns: 1fr; }
+  .pareto-chart-container { height: 440px; }
+  .pareto-summary { align-items: flex-start; flex-direction: column; gap: 8px; }
   .chart-heading { align-items: flex-start; flex-direction: column; }
   .chart-heading .button { align-self: stretch; }
   .dashboard-visual, .insert-visual, .table-visual { flex-basis: auto; height: 240px; min-width: 100%; width: 100%; }
