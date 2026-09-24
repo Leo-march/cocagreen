@@ -61,7 +61,6 @@ export default function InsertDataPage() {
       </header>
       <section className="dashboard-card import-card" aria-labelledby="insert-title">
         <div className="insert-content">
-          <div className="insert-placeholder-icon" aria-hidden="true">＋</div>
           <h2 id="insert-title">Importe sua tabela Excel</h2>
           <p>Selecione um arquivo .xlsx, .xld ou .xls com os dados da sua operação.</p>
           <label className="file-picker">

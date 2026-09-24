@@ -131,6 +131,29 @@ h1 { font-size: clamp(32px, 4vw, 44px); letter-spacing: -.04em; line-height: 1; 
 .table-empty-state { gap: 84px; }
 .table-visual { height: 290px; min-width: 220px; overflow: hidden; position: relative; }
 .table-visual img { object-fit: contain; object-position: center; }
+.machines-page { max-width: 1280px; }
+.machines-header { align-items: flex-start; display: flex; justify-content: space-between; gap: 28px; }
+.machines-header h1 { font-size: clamp(30px, 4vw, 42px); }
+.machines-count { color: var(--muted); font-size: 14px; margin: 7px 0 0; }
+.machines-actions { align-items: center; display: flex; gap: 14px; margin-top: 2px; }
+.machine-search { align-items: center; background: #fff; border: 1px solid var(--line); border-radius: 4px; color: var(--muted); display: flex; gap: 7px; height: 38px; padding: 0 10px; width: 270px; }
+.machine-search input { background: transparent; border: 0; color: var(--foreground); font-size: 11px; outline: 0; width: 100%; }
+.machine-add-button { background: var(--brand-dark); border: 0; border-radius: 4px; color: #fff; cursor: pointer; font-size: 11px; padding: 12px 16px; }
+.machine-filters { display: flex; gap: 10px; margin: 18px 0 28px; }
+.machine-filters button { background: #fff; border: 1px solid var(--line); border-radius: 5px; color: var(--muted); cursor: pointer; font-size: 11px; padding: 9px 12px; }
+.machine-filters button:hover, .machine-filter-active { border-color: #c88d88 !important; color: var(--brand-dark) !important; }
+.machines-grid { display: grid; gap: 18px 16px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.machine-card { background: #fff; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
+.machine-image { height: 138px; position: relative; }
+.machine-image img { object-fit: cover; }
+.machine-card-body { padding: 8px 10px 10px; }
+.machine-card-body h2 { font-size: 12px; margin: 0 0 3px; }
+.machine-card-body p { color: var(--muted); font-size: 10px; line-height: 1.35; margin: 2px 0; }
+.machine-card-body strong { color: var(--foreground); font-weight: 600; }
+.machine-status-online { color: #48734b; }
+.machine-status-maintenance { color: var(--brand-dark); }
+.machine-details { background: transparent; border: 0; color: var(--brand-dark); cursor: pointer; font-size: 10px; margin: 3px 0 0; padding: 0; text-decoration: underline; }
+.machines-empty { background: #fff; border: 1px solid var(--line); color: var(--muted); margin: 0; padding: 26px; text-align: center; }
 
 @media (max-width: 700px) {
   .sidebar { flex-basis: 76px; padding-top: 22px; }
@@ -153,4 +176,10 @@ h1 { font-size: clamp(32px, 4vw, 44px); letter-spacing: -.04em; line-height: 1; 
   .import-card { gap: 32px; }
   .insert-content { align-items: center; display: flex; flex-direction: column; }
   .empty-chart { transform: scale(.82); }
+  .machines-header { flex-direction: column; }
+  .machines-actions { align-items: stretch; flex-direction: column; width: 100%; }
+  .machine-search { box-sizing: border-box; width: 100%; }
+  .machine-add-button { width: 100%; }
+  .machines-grid { grid-template-columns: 1fr; }
+  .machine-image { height: 180px; }
 }
