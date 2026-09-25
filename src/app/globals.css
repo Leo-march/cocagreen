@@ -97,11 +97,36 @@ h1 { font-size: clamp(32px, 4vw, 44px); letter-spacing: -.04em; line-height: 1; 
 .import-error, .import-success { font-size: 13px !important; line-height: 1.4 !important; margin-top: 14px !important; }
 .import-error { color: var(--brand-dark) !important; }
 .import-success { color: #5f483e !important; }
-.import-preview { background: #fff; border: 1px solid var(--line); border-radius: 18px; margin-top: 28px; max-height: 520px; overflow-x: hidden; overflow-y: auto; }
-.preview-header { align-items: center; background: #fff; display: flex; justify-content: space-between; gap: 12px; padding: 22px 28px; position: sticky; top: 0; z-index: 1; }
+.import-preview {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  margin-top: 28px;
+  max-height: 520px;
+  overflow: hidden;
+  position: relative;
+}
+.preview-header {
+  align-items: center;
+  background: #fff;
+  box-shadow: 0 1px 0 var(--line);
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 22px 28px;
+  position: sticky;
+  top: 0;
+  z-index: 3;
+}
 .preview-header h2 { font-size: 20px; margin: 0; }
 .preview-header span { color: var(--muted); font-size: 13px; }
-.preview-scroll { max-width: 100%; overflow-x: auto; }
+.preview-scroll {
+  max-height: 440px;
+  max-width: 100%;
+  overflow: auto;
+  position: relative;
+  z-index: 1;
+}
 .import-preview table { border-collapse: collapse; min-width: max-content; table-layout: auto; text-align: left; width: 100%; }
 .import-preview th, .import-preview td {
   border-top: 1px solid var(--line);
