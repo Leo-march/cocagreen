@@ -23,36 +23,47 @@ def main() -> None:
         raise ValueError("A planilha não possui abas para importar.")
 
     engine = "xlrd" if file_path.suffix.lower() in {".xls", ".xld"} else "openpyxl"
-    dataframe = pd.read_excel(file_path, sheet_name=workbook.sheet_names[0], engine=engine, header=0)
-    dataframe = dataframe.dropna(how="all").reset_index(drop=True)
+    sheets = []
+    for sheet_name in workbook.sheet_names:
+        dataframe = pd.read_excel(file_path, sheet_name=sheet_name, engine=engine, header=0)
+        dataframe = dataframe.dropna(how="all").reset_index(drop=True)
 
-    original_columns = [str(column).strip() for column in dataframe.columns]
-    columns: list[str] = []
-    used_columns: set[str] = set()
-    for index, column in enumerate(original_columns):
-        base = column or f"coluna_{index + 1}"
-        name = base
-        suffix = 2
-        while name in used_columns:
-            name = f"{base}_{suffix}"
-            suffix += 1
-        used_columns.add(name)
-        columns.append(name)
+        original_columns = [str(column).strip() for column in dataframe.columns]
+        columns: list[str] = []
+        used_columns: set[str] = set()
+        for index, column in enumerate(original_columns):
+            base = column or f"coluna_{index + 1}"
+            name = base
+            suffix = 2
+            while name in used_columns:
+                name = f"{base}_{suffix}"
+                suffix += 1
+            used_columns.add(name)
+            columns.append(name)
 
-    dataframe.columns = columns
-    dataframe = dataframe.astype(object).where(pd.notna(dataframe), "")
-    rows = [
-        {column: row[index] for index, column in enumerate(columns)}
-        for row in dataframe.itertuples(index=False, name=None)
-    ]
+        dataframe.columns = columns
+        dataframe = dataframe.astype(object).where(pd.notna(dataframe), "")
+        rows = [
+            {column: row[index] for index, column in enumerate(columns)}
+            for row in dataframe.itertuples(index=False, name=None)
+        ]
+        if columns:
+            sheets.append(
+                {
+                    "sheet": sheet_name,
+                    "columns": columns,
+                    "rows": rows,
+                    "totalRows": len(dataframe.index),
+                }
+            )
+
+    if not sheets:
+        raise ValueError("Nenhuma aba contém colunas para importar.")
 
     print(
         json.dumps(
             {
-                "sheet": workbook.sheet_names[0],
-                "columns": columns,
-                "rows": rows,
-                "totalRows": len(dataframe.index),
+                "sheets": sheets,
             },
             ensure_ascii=False,
             default=str,

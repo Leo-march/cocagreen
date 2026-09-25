@@ -11,6 +11,13 @@ export const runtime = "nodejs";
 const MAX_FILE_SIZE = 10 * 1024 * 1024;
 const allowedExtensions = new Set([".xlsx", ".xld", ".xls"]);
 
+type ParsedSheet = {
+  sheet: string;
+  columns: string[];
+  rows: Record<string, unknown>[];
+  totalRows: number;
+};
+
 async function runParser(filePath: string): Promise<string> {
   const projectPython = join(
     process.cwd(),
@@ -80,33 +87,40 @@ export async function POST(request: Request) {
     const parserOutput = await runParser(temporaryFile);
     const result = JSON.parse(parserOutput) as {
       error?: string;
-      sheet?: string;
-      columns?: string[];
-      rows?: Record<string, unknown>[];
-      totalRows?: number;
+      sheets?: ParsedSheet[];
     };
 
     if (result.error) {
       return NextResponse.json({ error: result.error }, { status: 422 });
     }
 
-    const persisted = await saveImportedTable(
-      result.sheet || "planilha",
-      result.columns || [],
-      result.rows || [],
+    const sheets = result.sheets || [];
+    const columns = Array.from(new Set(sheets.flatMap((sheet) => sheet.columns)));
+    if (columns.length === 0) {
+      return NextResponse.json({ error: "Nenhuma aba contém colunas para importar." }, { status: 422 });
+    }
+    const rows = sheets.flatMap((sheet) =>
+      sheet.rows.map((row) => Object.fromEntries(columns.map((column) => [column, row[column] ?? ""]))),
     );
-    const previewRows = (result.rows || []).slice(0, 100).map((row) =>
+    const persisted = await saveImportedTable(
+      sheets[0]?.sheet || "planilha",
+      columns,
+      rows,
+    );
+    const previewRows = rows.slice(0, 100).map((row) =>
       Object.fromEntries(
         persisted.columns.map((column, index) => [
           column,
-          row[result.columns?.[index] || ""] ?? "",
+          row[columns[index] || ""] ?? "",
         ]),
       ),
     );
 
     return NextResponse.json({
-      ...result,
       ...persisted,
+      sheet: sheets[0]?.sheet || "planilha",
+      sheets: sheets.map(({ sheet }) => sheet),
+      totalRows: rows.length,
       rows: previewRows,
     });
   } catch (error) {

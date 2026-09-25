@@ -36,9 +36,17 @@ export async function saveImportedTable(
       .replace(/^(\d)/, "_$1");
     return base || `coluna_${index + 1}`;
   });
-  const uniqueColumns = normalizedColumns.map((column, index) =>
-    normalizedColumns.slice(0, index).includes(column) ? `${column}_${index + 1}` : column,
-  );
+  const usedColumnNames = new Set(["id", "created_at"]);
+  const uniqueColumns = normalizedColumns.map((column) => {
+    let name = column;
+    let suffix = 2;
+    while (usedColumnNames.has(name)) {
+      name = `${column}_${suffix}`;
+      suffix += 1;
+    }
+    usedColumnNames.add(name);
+    return name;
+  });
   const pool = mysql.createPool(getConfig());
 
   try {

@@ -141,7 +141,6 @@ export default function DashboardPage() {
       {hasChart ? (
         <section className="dashboard-chart-card pareto-card" aria-labelledby="chart-title">
           <nav className="analysis-tabs" aria-label="Tipo de análise">
-            <span className="analysis-tab">Visão geral</span>
             <span className="analysis-tab analysis-tab-active">Pareto</span>
             <span className="analysis-tab">Jack–Knife</span>
           </nav>

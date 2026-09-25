@@ -67,6 +67,7 @@ h1 { font-size: clamp(32px, 4vw, 44px); letter-spacing: -.04em; line-height: 1; 
 .pareto-card { width: 100%; }
 .analysis-tabs { border-bottom: 1px solid var(--line); display: flex; gap: 26px; margin: -10px 0 14px; }
 .analysis-tab { color: var(--muted); font-size: 12px; padding: 10px 0; }
+.analysis-tabs a { text-decoration: none; }
 .analysis-tab-active { border-bottom: 2px solid var(--brand-dark); color: var(--brand-dark); font-weight: 700; }
 .analysis-filters { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 22px; }
 .analysis-filters span, .analysis-filters label { align-items: center; border: 1px solid var(--line); border-radius: 7px; color: var(--muted); display: inline-flex; font-size: 11px; gap: 5px; padding: 7px 10px; }
@@ -92,6 +93,23 @@ h1 { font-size: clamp(32px, 4vw, 44px); letter-spacing: -.04em; line-height: 1; 
 .pareto-table tr:last-child td { border-bottom: 0; }
 .pareto-summary { border-top: 1px solid var(--line); color: var(--muted); display: flex; font-size: 13px; gap: 24px; justify-content: space-between; margin-top: 8px; padding-top: 16px; }
 .pareto-summary strong { color: var(--brand-dark); }
+.jackknife-card { overflow: visible; }
+.jackknife-chart-heading { justify-content: center; }
+.jackknife-chart-heading > div { width: 100%; }
+.jackknife-chart-title { color: var(--foreground) !important; font-size: 14px !important; font-weight: 700; margin-top: 8px !important; text-align: center; }
+.jackknife-layout { display: block; margin-top: 8px; width: 100%; }
+.jackknife-chart-container { height: 590px; min-width: 0; width: 100%; }
+.jackknife-side-panel { display: grid; grid-template-columns: minmax(220px, 260px) minmax(0, 1fr); margin-top: 20px; min-height: 0; }
+.jackknife-table-wrap { max-height: 520px; overflow: auto; }
+.jackknife-table { min-width: 390px; }
+.jackknife-table th, .jackknife-table td { font-size: 8px; padding: 5px 3px; }
+.jackknife-table td:first-child { max-width: 170px; }
+.jackknife-table td:not(:first-child), .jackknife-table th:not(:first-child) { white-space: nowrap; }
+.jackknife-point-id { background: var(--brand-light); border-radius: 50%; color: var(--brand-dark); display: inline-flex; font-size: 9px; font-weight: 700; height: 17px; justify-content: center; margin-right: 6px; width: 17px; }
+.jackknife-category { font-size: 9px; font-weight: 700; }
+.jackknife-formulas { border-top: 1px solid var(--line); color: var(--muted); display: flex; flex-wrap: wrap; font-size: 11px; gap: 12px 26px; margin-top: 16px; padding-top: 14px; }
+.jackknife-formulas strong { color: var(--brand-dark); }
+.jackknife-empty { background: #fff9f7; border: 1px solid var(--line); border-radius: 8px; color: var(--muted); font-size: 14px; line-height: 1.6; margin-top: 24px; padding: 24px; }
 .empty-state-copy { max-width: 445px; }
 .empty-state-kicker { color: var(--brand-dark); font-size: 13px; font-weight: 700; margin: 0 0 14px; }
 .empty-state-copy h2, .insert-placeholder h2 { font-size: clamp(24px, 3vw, 32px); letter-spacing: -.03em; line-height: 1.12; margin: 0; }
@@ -169,6 +187,10 @@ h1 { font-size: clamp(32px, 4vw, 44px); letter-spacing: -.04em; line-height: 1; 
   .dashboard-chart-card { margin-top: 36px; padding: 30px 20px 20px; }
   .pareto-layout { grid-template-columns: 1fr; }
   .pareto-chart-container { height: 440px; }
+  .jackknife-chart-container { height: 480px; }
+  .jackknife-side-panel { grid-template-columns: minmax(0, 1fr); }
+  .jackknife-table-wrap { max-height: 440px; }
+  .jackknife-formulas { flex-direction: column; }
   .pareto-summary { align-items: flex-start; flex-direction: column; gap: 8px; }
   .chart-heading { align-items: flex-start; flex-direction: column; }
   .chart-heading .button { align-self: stretch; }

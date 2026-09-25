@@ -5,6 +5,7 @@ import { ChangeEvent, useState } from "react";
 
 type ImportResult = {
   sheet: string;
+  sheets?: string[];
   columns: string[];
   rows: Record<string, unknown>[];
   totalRows: number;
@@ -73,7 +74,9 @@ export default function InsertDataPage() {
           {error && <p className="import-error" role="alert">{error}</p>}
           {result && (
             <p className="import-success" role="status">
-              Aba “{result.sheet}” importada com {result.totalRows} linha(s). Tabelas criadas/atualizadas: {result.tableNames?.join(", ") || result.tableName}. Prévia disponível abaixo.
+              {result.sheets && result.sheets.length > 1
+                ? `Abas ${result.sheets.map((sheet) => `“${sheet}”`).join(", ")} importadas com ${result.totalRows} linha(s) no total.`
+                : `Aba “${result.sheet}” importada com ${result.totalRows} linha(s).`} Tabela criada/atualizada: {result.tableName}. Prévia disponível abaixo.
             </p>
           )}
         </div>
