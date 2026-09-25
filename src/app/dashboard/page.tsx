@@ -1,4 +1,4 @@
-"use client";
+  "use client";
 
 import Image from "next/image";
 import Link from "next/link";
@@ -102,7 +102,14 @@ export default function DashboardPage() {
       ) : (
         <section className="dashboard-card" aria-labelledby="empty-dashboard-title">
           <div className="dashboard-visual">
-            <Image src="/identidade_coca-1.jpg" alt="Garrafa Coca-Cola cercada por tampas vermelhas" fill sizes="(max-width: 700px) 100vw, 38vw" priority />
+            <Image
+              src="/identidade_coca-1.jpg"
+              alt="Garrafa Coca-Cola cercada por tampas vermelhas"
+              fill
+              sizes="(max-width: 700px) 100vw, 38vw"
+              priority
+              style={{ objectFit: "cover" }}
+            />
             <div className="dashboard-visual-caption">Seu impacto em um só lugar</div>
           </div>
           <div className="empty-state-copy">

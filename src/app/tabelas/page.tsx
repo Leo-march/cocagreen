@@ -22,6 +22,7 @@ export default function TablesPage() {
             alt="Ilustração de uma garrafa Coca-Cola"
             fill
             sizes="220px"
+            style={{ objectFit: "cover" }}
           />
         </div>
         <div className="empty-state-copy">

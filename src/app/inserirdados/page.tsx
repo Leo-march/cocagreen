@@ -79,7 +79,13 @@ export default function InsertDataPage() {
           )}
         </div>
         <div className="insert-visual">
-          <Image src="/identidade_coca-2.jpg" alt="Ilustração de uma garrafa Coca-Cola" fill sizes="240px" />
+          <Image
+            src="/identidade_coca-2.jpg"
+            alt="Ilustração de uma garrafa Coca-Cola"
+            fill
+            sizes="240px"
+            style={{ objectFit: "cover" }}
+          />
         </div>
       </section>
       {result && (
