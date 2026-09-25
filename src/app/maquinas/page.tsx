@@ -33,6 +33,7 @@ export default function MachinesPage() {
     <div className="dashboard-page dashboard-with-brand-bg machines-page">
       <header className="machines-header">
         <div>
+          <p className="eyebrow">GESTÃO DA OPERAÇÃO</p>
           <h1>Máquinas</h1>
           <p className="machines-count">{filteredMachines.length} máquinas cadastradas</p>
         </div>
@@ -60,9 +61,9 @@ export default function MachinesPage() {
             <div className="machine-card-body">
               <h2>{machine.name}</h2>
               <p><strong>Setor:</strong> {machine.sector}</p>
-              <p><strong>Estado:</strong> <span className={machine.status === "Operando" ? "machine-status-online" : "machine-status-maintenance"}>{machine.status}</span></p>
+              <p className="machine-status-row"><strong>Estado:</strong> <span className={`machine-status ${machine.status === "Operando" ? "machine-status-online" : "machine-status-maintenance"}`}>{machine.status}</span></p>
               <p><strong>Última manutenção:</strong> {machine.maintenance}</p>
-              <button type="button" className="machine-details">Ver detalhes</button>
+              <button type="button" className="machine-details">Ver detalhes <span aria-hidden="true">→</span></button>
             </div>
           </article>
         ))}

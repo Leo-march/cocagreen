@@ -29,7 +29,8 @@ body {
 .sidebar {
   background: #fff; border-right: 3px solid var(--brand); border-radius: 0 0 10px 0;
   box-shadow: 2px 0 12px rgba(75, 43, 37, .08); display: flex; flex: 0 0 130px;
-  flex-direction: column; align-items: center; min-height: 100vh; padding: 36px 0 22px;
+  box-sizing: border-box; flex-direction: column; align-items: center; height: 100vh; left: 0;
+  overflow-y: auto; padding: 36px 0 22px; position: fixed; top: 0; width: 130px; z-index: 20;
 }
 .sidebar-logo { display: block; line-height: 0; }
 .sidebar-logo img { border-radius: 50%; object-fit: cover; }
@@ -42,7 +43,7 @@ body {
 .sidebar-link svg { height: 32px; width: 32px; }
 .sidebar-link:hover, .sidebar-link-active { color: var(--brand); }
 .sidebar-link-active { font-weight: 700; }
-.app-content { flex: 1; min-width: 0; }
+.app-content { flex: 1; margin-left: 130px; min-width: 0; }
 .dashboard-page { margin: 0 auto; max-width: 1120px; padding: 62px 64px 80px; }
 .dashboard-with-brand-bg { max-width: none; min-height: 100vh; overflow: hidden; padding-left: max(64px, calc((100vw - 1120px) / 2)); padding-right: max(64px, calc((100vw - 1120px) / 2)); position: relative; }
 .dashboard-with-brand-bg::before {
@@ -150,31 +151,48 @@ h1 { font-size: clamp(32px, 4vw, 44px); letter-spacing: -.04em; line-height: 1; 
 .table-visual { height: 290px; min-width: 220px; overflow: hidden; position: relative; }
 .table-visual img { object-fit: contain; object-position: center; }
 .machines-page { max-width: 1280px; }
-.machines-header { align-items: flex-start; display: flex; justify-content: space-between; gap: 28px; }
+.machines-header { align-items: flex-end; display: flex; justify-content: space-between; gap: 28px; }
 .machines-header h1 { font-size: clamp(30px, 4vw, 42px); }
-.machines-count { color: var(--muted); font-size: 14px; margin: 7px 0 0; }
-.machines-actions { align-items: center; display: flex; gap: 14px; margin-top: 2px; }
-.machine-search { align-items: center; background: #fff; border: 1px solid var(--line); border-radius: 4px; color: var(--muted); display: flex; gap: 7px; height: 38px; padding: 0 10px; width: 270px; }
-.machine-search input { background: transparent; border: 0; color: var(--foreground); font-size: 11px; outline: 0; width: 100%; }
-.machine-add-button { background: var(--brand-dark); border: 0; border-radius: 4px; color: #fff; cursor: pointer; font-size: 11px; padding: 12px 16px; }
-.machine-filters { display: flex; gap: 10px; margin: 18px 0 28px; }
-.machine-filters button { background: #fff; border: 1px solid var(--line); border-radius: 5px; color: var(--muted); cursor: pointer; font-size: 11px; padding: 9px 12px; }
+.machines-count { color: var(--muted); font-size: 14px; margin: 10px 0 0; }
+.machines-actions { align-items: center; display: flex; gap: 12px; margin-top: 2px; }
+.machine-search { align-items: center; background: #fff; border: 1px solid var(--line); border-radius: 9px; box-shadow: 0 3px 12px rgba(75, 43, 37, .04); color: var(--muted); display: flex; gap: 9px; height: 44px; padding: 0 13px; width: min(300px, 28vw); }
+.machine-search:focus-within { border-color: #c88d88; box-shadow: 0 0 0 3px rgba(201, 35, 43, .08); }
+.machine-search input { background: transparent; border: 0; color: var(--foreground); font-size: 13px; outline: 0; width: 100%; }
+.machine-add-button { background: var(--brand-dark); border: 0; border-radius: 9px; box-shadow: 0 5px 12px rgba(143, 24, 32, .15); color: #fff; cursor: pointer; font-size: 13px; font-weight: 700; padding: 14px 18px; transition: background .2s, transform .2s; white-space: nowrap; }
+.machine-add-button:hover { background: var(--brand); transform: translateY(-1px); }
+.machine-filters { display: flex; flex-wrap: wrap; gap: 9px; margin: 22px 0 30px; }
+.machine-filters button { background: #fff; border: 1px solid var(--line); border-radius: 8px; color: var(--muted); cursor: pointer; font-size: 12px; padding: 10px 14px; transition: background .2s, border-color .2s, color .2s; }
 .machine-filters button:hover, .machine-filter-active { border-color: #c88d88 !important; color: var(--brand-dark) !important; }
-.machines-grid { display: grid; gap: 18px 16px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.machine-card { background: #fff; border: 1px solid var(--line); border-radius: 4px; overflow: hidden; }
-.machine-image { height: 138px; position: relative; }
-.machine-image img { object-fit: cover; }
-.machine-card-body { padding: 8px 10px 10px; }
-.machine-card-body h2 { font-size: 12px; margin: 0 0 3px; }
-.machine-card-body p { color: var(--muted); font-size: 10px; line-height: 1.35; margin: 2px 0; }
+.machine-filter-active { background: #fff9f7 !important; font-weight: 700; }
+.machines-grid { display: grid; gap: 22px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.machine-card { background: #fff; border: 1px solid rgba(234, 219, 215, .9); border-radius: 14px; box-shadow: 0 8px 24px rgba(75, 43, 37, .07); display: flex; flex-direction: column; min-width: 0; overflow: hidden; transition: box-shadow .2s, transform .2s; }
+.machine-card:hover { box-shadow: 0 14px 30px rgba(75, 43, 37, .13); transform: translateY(-3px); }
+.machine-image { aspect-ratio: 16 / 9; background: #f2e9e6; overflow: hidden; position: relative; }
+.machine-image img { object-fit: cover; transition: transform .35s ease; }
+.machine-card:hover .machine-image img { transform: scale(1.035); }
+.machine-card-body { display: flex; flex: 1; flex-direction: column; padding: 17px 18px 16px; }
+.machine-card-body h2 { font-size: 16px; letter-spacing: -.02em; margin: 0 0 13px; }
+.machine-card-body p { align-items: baseline; color: var(--muted); display: flex; font-size: 12px; gap: 5px; line-height: 1.45; margin: 5px 0; }
 .machine-card-body strong { color: var(--foreground); font-weight: 600; }
-.machine-status-online { color: #48734b; }
-.machine-status-maintenance { color: var(--brand-dark); }
-.machine-details { background: transparent; border: 0; color: var(--brand-dark); cursor: pointer; font-size: 10px; margin: 3px 0 0; padding: 0; text-decoration: underline; }
-.machines-empty { background: #fff; border: 1px solid var(--line); color: var(--muted); margin: 0; padding: 26px; text-align: center; }
+.machine-status-row { align-items: center !important; }
+.machine-status { border-radius: 999px; font-size: 11px; font-weight: 700; padding: 4px 9px; }
+.machine-status-online { background: #edf6ed; color: #48734b; }
+.machine-status-maintenance { background: #fbe8e5; color: var(--brand-dark); }
+.machine-details { align-items: center; background: transparent; border: 0; color: var(--brand-dark); cursor: pointer; display: inline-flex; font-size: 12px; font-weight: 700; gap: 7px; margin: auto 0 0; padding: 16px 0 0; text-align: left; }
+.machine-details span { transition: transform .2s; }
+.machine-details:hover span { transform: translateX(3px); }
+.machines-empty { background: #fff; border: 1px solid var(--line); border-radius: 12px; color: var(--muted); margin: 0; padding: 32px; text-align: center; }
+
+@media (max-width: 1050px) {
+  .machines-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .machines-header { align-items: flex-start; flex-direction: column; }
+  .machines-actions { width: 100%; }
+  .machine-search { flex: 1; width: auto; }
+}
 
 @media (max-width: 700px) {
-  .sidebar { flex-basis: 76px; padding-top: 22px; }
+  .sidebar { flex-basis: 76px; padding-top: 22px; width: 76px; }
+  .app-content { margin-left: 76px; }
   .sidebar-logo img { height: 52px; width: auto; }
   .sidebar-nav { gap: 12px; }
   .sidebar-link { width: 60px; }
@@ -198,10 +216,11 @@ h1 { font-size: clamp(32px, 4vw, 44px); letter-spacing: -.04em; line-height: 1; 
   .import-card { gap: 32px; }
   .insert-content { align-items: center; display: flex; flex-direction: column; }
   .empty-chart { transform: scale(.82); }
-  .machines-header { flex-direction: column; }
-  .machines-actions { align-items: stretch; flex-direction: column; width: 100%; }
-  .machine-search { box-sizing: border-box; width: 100%; }
+  .machines-header { gap: 18px; }
+  .machines-actions { align-items: stretch; flex-direction: column; }
+  .machine-search { box-sizing: border-box; flex: initial; width: 100%; }
   .machine-add-button { width: 100%; }
-  .machines-grid { grid-template-columns: 1fr; }
-  .machine-image { height: 180px; }
+  .machines-grid { gap: 16px; grid-template-columns: minmax(0, 1fr); }
+  .machine-card-body { padding: 16px; }
+  .machine-card-body h2 { font-size: 15px; }
 }

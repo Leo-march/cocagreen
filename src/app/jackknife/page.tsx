@@ -184,7 +184,6 @@ export default function JackKnifePage() {
             <h2 id="jackknife-title">Crítico-crônico</h2>
             <p className="jackknife-chart-title">CRÍTICO- CRÔNICO LINHA &amp; EQUIPAMENTO</p>
           </div>
-          <span className="analysis-tab">Visão geral</span>
         </div>
 
         {chart.points.length ? (

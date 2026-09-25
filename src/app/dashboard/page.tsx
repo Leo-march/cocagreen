@@ -142,23 +142,24 @@ export default function DashboardPage() {
         <section className="dashboard-chart-card pareto-card" aria-labelledby="chart-title">
           <nav className="analysis-tabs" aria-label="Tipo de análise">
             <span className="analysis-tab analysis-tab-active">Pareto</span>
-            <span className="analysis-tab">Jack–Knife</span>
+            <Link href="/jackknife" className="analysis-tab" aria-current="page">Jack–Knife</Link>
+
           </nav>
           <div className="analysis-filters" aria-label="Filtros da análise">
-          <label>Período:
-            <select value={period} onChange={(event) => setPeriod(event.target.value as PeriodFilter)}>
-              <option value="month">Mês</option>
-              <option value="week">Semana</option>
-              <option value="day">Dia</option>
-            </select>
-          </label>
-          <label>Setor:
-            <select value={selectedLine} onChange={(event) => setSelectedLine(event.target.value)}>
-              <option value="all">Todas as linhas</option>
-              {lineOptions.map((line) => <option key={line} value={line}>{line}</option>)}
-            </select>
-          </label>
-          <span>Analisar por: <strong>{selectedLine === "all" ? "Linha" : "Equipamento"}</strong></span>
+            <label>Período:
+              <select value={period} onChange={(event) => setPeriod(event.target.value as PeriodFilter)}>
+                <option value="month">Mês</option>
+                <option value="week">Semana</option>
+                <option value="day">Dia</option>
+              </select>
+            </label>
+            <label>Setor:
+              <select value={selectedLine} onChange={(event) => setSelectedLine(event.target.value)}>
+                <option value="all">Todas as linhas</option>
+                {lineOptions.map((line) => <option key={line} value={line}>{line}</option>)}
+              </select>
+            </label>
+            <span>Analisar por: <strong>{selectedLine === "all" ? "Linha" : "Equipamento"}</strong></span>
           </div>
           <div className="chart-heading">
             <div>
