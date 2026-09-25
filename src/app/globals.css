@@ -102,8 +102,16 @@ h1 { font-size: clamp(32px, 4vw, 44px); letter-spacing: -.04em; line-height: 1; 
 .preview-header h2 { font-size: 20px; margin: 0; }
 .preview-header span { color: var(--muted); font-size: 13px; }
 .preview-scroll { max-width: 100%; overflow-x: auto; }
-.import-preview table { border-collapse: collapse; min-width: 100%; text-align: left; }
-.import-preview th, .import-preview td { border-top: 1px solid var(--line); font-size: 13px; max-width: 260px; padding: 13px 18px; white-space: nowrap; }
+.import-preview table { border-collapse: collapse; min-width: max-content; table-layout: auto; text-align: left; width: 100%; }
+.import-preview th, .import-preview td {
+  border-top: 1px solid var(--line);
+  font-size: 13px;
+  line-height: 1.45;
+  overflow-wrap: normal;
+  padding: 13px 18px;
+  white-space: nowrap;
+  word-break: normal;
+}
 .import-preview th { background: #fff9f7; color: var(--brand-dark); font-weight: 700; }
 .table-empty-state { gap: 84px; }
 .table-visual { height: 290px; min-width: 220px; overflow: hidden; position: relative; }
