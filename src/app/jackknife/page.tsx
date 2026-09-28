@@ -13,6 +13,8 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { AnalysisTabs } from "@/components/analysis-tabs";
+import { EmptyDashboardPage } from "@/components/empty-dashboard";
 
 type DashboardData = {
   columns: string[];
@@ -145,6 +147,10 @@ export default function JackKnifePage() {
   };
   const criticalCount = chart.points.filter((point) => point.category === "Crítico-crônico").length;
 
+  if (!chart.points.length) {
+    return <EmptyDashboardPage message={loadError || "Insira uma planilha com colunas de linha, equipamento, descrição da falha, data e minutos parados para visualizar o Jack–Knife."} />;
+  }
+
   return (
     <div className="dashboard-page dashboard-with-brand-bg">
       <header className="page-header">
@@ -157,10 +163,7 @@ export default function JackKnifePage() {
       </header>
 
       <section className="dashboard-chart-card pareto-card jackknife-card" aria-labelledby="jackknife-title">
-        <nav className="analysis-tabs" aria-label="Tipo de análise">
-          <Link href="/dashboard" className="analysis-tab">Pareto</Link>
-          <Link href="/jackknife" className="analysis-tab analysis-tab-active" aria-current="page">Jack–Knife</Link>
-        </nav>
+        <AnalysisTabs active="jackknife" />
         <div className="analysis-filters" aria-label="Filtros da análise">
           <label>Período:
             <select value={period} onChange={(event) => setPeriod(event.target.value as PeriodFilter)}>

@@ -150,8 +150,8 @@ h1 { font-size: clamp(32px, 4vw, 44px); letter-spacing: -.04em; line-height: 1; 
 .table-empty-state { gap: 84px; }
 .table-visual { height: 290px; min-width: 220px; overflow: hidden; position: relative; }
 .table-visual img { object-fit: contain; object-position: center; }
-.machines-page { max-width: 1280px; }
-.machines-header { align-items: flex-end; display: flex; justify-content: space-between; gap: 28px; }
+.machines-page { max-width: none; padding-left: max(32px, calc((100vw - 1520px) / 2)); padding-right: max(32px, calc((100vw - 1520px) / 2)); }
+.machines-header { align-items: flex-start; display: flex; justify-content: space-between; gap: 28px; }
 .machines-header h1 { font-size: clamp(30px, 4vw, 42px); }
 .machines-count { color: var(--muted); font-size: 14px; margin: 10px 0 0; }
 .machines-actions { align-items: center; display: flex; gap: 12px; margin-top: 2px; }
@@ -188,6 +188,10 @@ h1 { font-size: clamp(32px, 4vw, 44px); letter-spacing: -.04em; line-height: 1; 
   .machines-header { align-items: flex-start; flex-direction: column; }
   .machines-actions { width: 100%; }
   .machine-search { flex: 1; width: auto; }
+}
+
+@media (max-width: 980px) {
+  .machines-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 700px) {

@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -15,6 +14,8 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { AnalysisTabs } from "@/components/analysis-tabs";
+import { EmptyDashboardPage } from "@/components/empty-dashboard";
 
 type DashboardData = {
   tableName: string;
@@ -81,7 +82,8 @@ function buildParetoData(data: DashboardData, period: PeriodFilter, selectedLine
     .sort((first, second) => second.minutes - first.minutes);
   const visible = sorted.slice(0, 12);
   const otherMinutes = sorted.slice(12).reduce((sum, item) => sum + item.minutes, 0);
-  if (otherMinutes > 0) visible.push({ label: "Outros equipamentos", minutes: otherMinutes });
+  const otherOccurrences = sorted.slice(12).reduce((sum, item) => sum + item.occurrences, 0);
+  if (otherMinutes > 0) visible.push({ label: "Outros equipamentos", minutes: otherMinutes, occurrences: otherOccurrences });
   const total = sorted.reduce((sum, item) => sum + item.minutes, 0);
   const totalOccurrences = sorted.reduce((sum, item) => sum + item.occurrences, 0);
   let accumulated = 0;
@@ -127,6 +129,10 @@ export default function DashboardPage() {
   const chart = useMemo(() => dashboardData ? buildParetoData(dashboardData, period, selectedLine) : { data: [], lineColumn: undefined, equipmentColumn: undefined, minutesColumn: undefined }, [dashboardData, period, selectedLine]);
   const hasChart = chart.data.length > 0;
 
+  if (!hasChart) {
+    return <EmptyDashboardPage message={loadError || undefined} />;
+  }
+
   return (
     <div className="dashboard-page dashboard-with-brand-bg">
       <header className="page-header">
@@ -138,13 +144,8 @@ export default function DashboardPage() {
         <Link href="/inserirdados" className="button button-primary">Inserir dados</Link>
       </header>
 
-      {hasChart ? (
-        <section className="dashboard-chart-card pareto-card" aria-labelledby="chart-title">
-          <nav className="analysis-tabs" aria-label="Tipo de análise">
-            <span className="analysis-tab analysis-tab-active">Pareto</span>
-            <Link href="/jackknife" className="analysis-tab" aria-current="page">Jack–Knife</Link>
-
-          </nav>
+      <section className="dashboard-chart-card pareto-card" aria-labelledby="chart-title">
+          <AnalysisTabs active="pareto" />
           <div className="analysis-filters" aria-label="Filtros da análise">
             <label>Período:
               <select value={period} onChange={(event) => setPeriod(event.target.value as PeriodFilter)}>
@@ -205,21 +206,7 @@ export default function DashboardPage() {
             <span><strong>{groupedEquipmentCount(chart.data)}</strong> grupos exibidos</span>
             <span><strong>{chart.data[0]?.label}</strong> concentra {chart.data[0]?.accumulated.toFixed(1)}% do tempo</span>
           </div>
-        </section>
-      ) : (
-        <section className="dashboard-card" aria-labelledby="empty-dashboard-title">
-          <div className="dashboard-visual">
-            <Image src="/identidade_coca-1.jpg" alt="Garrafa Coca-Cola cercada por tampas vermelhas" fill sizes="(max-width: 700px) 100vw, 38vw" priority />
-            <div className="dashboard-visual-caption">Seu impacto em um só lugar</div>
-          </div>
-          <div className="empty-state-copy">
-            <p className="empty-state-kicker">Tudo pronto para começar</p>
-            <h2 id="empty-dashboard-title">Ainda não existem dados para analisar</h2>
-            <p>{loadError || "Insira uma planilha com as colunas de linha, equipamento e tempo em minutos para visualizar o Pareto."}</p>
-            <Link href="/inserirdados" className="button button-secondary">Ir para inserção de dados <span aria-hidden="true">→</span></Link>
-          </div>
-        </section>
-      )}
+      </section>
     </div>
   );
 }
