@@ -13,6 +13,8 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { AnalysisTabs } from "@/components/analysis-tabs";
+import { EmptyDashboardPage } from "@/components/empty-dashboard";
 
 type DashboardData = {
   columns: string[];
@@ -145,8 +147,12 @@ export default function JackKnifePage() {
   };
   const criticalCount = chart.points.filter((point) => point.category === "Crítico-crônico").length;
 
+  if (!chart.points.length) {
+    return <EmptyDashboardPage message={loadError || "Insira uma planilha com colunas de linha, equipamento, descrição da falha, data e minutos parados para visualizar o Jack–Knife."} />;
+  }
+
   return (
-    <div className="dashboard-page dashboard-with-brand-bg">
+    <div className="dashboard-page dashboard-with-brand-bg analysis-dashboard-page">
       <header className="page-header">
         <div>
           <p className="eyebrow">DASHBOARD</p>
@@ -157,10 +163,7 @@ export default function JackKnifePage() {
       </header>
 
       <section className="dashboard-chart-card pareto-card jackknife-card" aria-labelledby="jackknife-title">
-        <nav className="analysis-tabs" aria-label="Tipo de análise">
-          <Link href="/dashboard" className="analysis-tab">Pareto</Link>
-          <Link href="/jackknife" className="analysis-tab analysis-tab-active" aria-current="page">Jack–Knife</Link>
-        </nav>
+        <AnalysisTabs active="jackknife" />
         <div className="analysis-filters" aria-label="Filtros da análise">
           <label>Período:
             <select value={period} onChange={(event) => setPeriod(event.target.value as PeriodFilter)}>
@@ -184,7 +187,6 @@ export default function JackKnifePage() {
             <h2 id="jackknife-title">Crítico-crônico</h2>
             <p className="jackknife-chart-title">CRÍTICO- CRÔNICO LINHA &amp; EQUIPAMENTO</p>
           </div>
-          <span className="analysis-tab">Visão geral</span>
         </div>
 
         {chart.points.length ? (
@@ -216,11 +218,18 @@ export default function JackKnifePage() {
                       label={{ value: "MTTR", angle: -90, position: "insideLeft", offset: -10, fill: "#806d68", fontSize: 13, fontWeight: 700 }}
                     />
                     <Tooltip
-                      formatter={(value, name) => [
-                        name === "Nº de falhas" ? Number(value).toLocaleString("pt-BR") : `${Number(value).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} min`,
-                        name,
-                      ]}
-                      labelFormatter={(_, payload) => payload[0]?.payload?.name || ""}
+                      content={({ active, payload }) => {
+                        const point = payload?.[0]?.payload;
+                        if (!active || !point) return null;
+
+                        return (
+                          <div className="pareto-tooltip">
+                            <strong>{point.equipment}</strong>
+                            <span><b>Tempo:</b> {Number(point.totalMinutes).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} min</span>
+                            <span><b>Falhas:</b> {Number(point.frequency).toLocaleString("pt-BR")}</span>
+                          </div>
+                        );
+                      }}
                     />
                     <ReferenceLine x={chart.frequencyLimit} stroke="#c9232b" strokeWidth={1.5} label={{ value: `Limite frequência: ${chart.frequencyLimit.toFixed(1)}`, position: "insideTopRight", fill: "#8f1820", fontSize: 10 }} />
                     <ReferenceLine y={chart.mttrLimit} stroke="#8f1820" strokeWidth={1.5} label={{ value: `Limite criticidade: ${chart.mttrLimit.toFixed(1)} min`, position: "insideTopLeft", fill: "#8f1820", fontSize: 10 }} />

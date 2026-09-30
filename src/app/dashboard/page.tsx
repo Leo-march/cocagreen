@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -15,6 +14,8 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { AnalysisTabs } from "@/components/analysis-tabs";
+import { EmptyDashboardPage } from "@/components/empty-dashboard";
 
 type DashboardData = {
   tableName: string;
@@ -81,7 +82,8 @@ function buildParetoData(data: DashboardData, period: PeriodFilter, selectedLine
     .sort((first, second) => second.minutes - first.minutes);
   const visible = sorted.slice(0, 12);
   const otherMinutes = sorted.slice(12).reduce((sum, item) => sum + item.minutes, 0);
-  if (otherMinutes > 0) visible.push({ label: "Outros equipamentos", minutes: otherMinutes });
+  const otherOccurrences = sorted.slice(12).reduce((sum, item) => sum + item.occurrences, 0);
+  if (otherMinutes > 0) visible.push({ label: "Outros equipamentos", minutes: otherMinutes, occurrences: otherOccurrences });
   const total = sorted.reduce((sum, item) => sum + item.minutes, 0);
   const totalOccurrences = sorted.reduce((sum, item) => sum + item.occurrences, 0);
   let accumulated = 0;
@@ -127,8 +129,12 @@ export default function DashboardPage() {
   const chart = useMemo(() => dashboardData ? buildParetoData(dashboardData, period, selectedLine) : { data: [], lineColumn: undefined, equipmentColumn: undefined, minutesColumn: undefined }, [dashboardData, period, selectedLine]);
   const hasChart = chart.data.length > 0;
 
+  if (!hasChart) {
+    return <EmptyDashboardPage message={loadError || undefined} />;
+  }
+
   return (
-    <div className="dashboard-page dashboard-with-brand-bg">
+    <div className="dashboard-page dashboard-with-brand-bg analysis-dashboard-page">
       <header className="page-header">
         <div>
           <p className="eyebrow">DASHBOARD</p>
@@ -138,27 +144,23 @@ export default function DashboardPage() {
         <Link href="/inserirdados" className="button button-primary">Inserir dados</Link>
       </header>
 
-      {hasChart ? (
-        <section className="dashboard-chart-card pareto-card" aria-labelledby="chart-title">
-          <nav className="analysis-tabs" aria-label="Tipo de análise">
-            <span className="analysis-tab analysis-tab-active">Pareto</span>
-            <span className="analysis-tab">Jack–Knife</span>
-          </nav>
+      <section className="dashboard-chart-card pareto-card" aria-labelledby="chart-title">
+          <AnalysisTabs active="pareto" />
           <div className="analysis-filters" aria-label="Filtros da análise">
-          <label>Período:
-            <select value={period} onChange={(event) => setPeriod(event.target.value as PeriodFilter)}>
-              <option value="month">Mês</option>
-              <option value="week">Semana</option>
-              <option value="day">Dia</option>
-            </select>
-          </label>
-          <label>Setor:
-            <select value={selectedLine} onChange={(event) => setSelectedLine(event.target.value)}>
-              <option value="all">Todas as linhas</option>
-              {lineOptions.map((line) => <option key={line} value={line}>{line}</option>)}
-            </select>
-          </label>
-          <span>Analisar por: <strong>{selectedLine === "all" ? "Linha" : "Equipamento"}</strong></span>
+            <label>Período:
+              <select value={period} onChange={(event) => setPeriod(event.target.value as PeriodFilter)}>
+                <option value="month">Mês</option>
+                <option value="week">Semana</option>
+                <option value="day">Dia</option>
+              </select>
+            </label>
+            <label>Setor:
+              <select value={selectedLine} onChange={(event) => setSelectedLine(event.target.value)}>
+                <option value="all">Todas as linhas</option>
+                {lineOptions.map((line) => <option key={line} value={line}>{line}</option>)}
+              </select>
+            </label>
+            <span>Analisar por: <strong>{selectedLine === "all" ? "Linha" : "Equipamento"}</strong></span>
           </div>
           <div className="chart-heading">
             <div>
@@ -176,7 +178,21 @@ export default function DashboardPage() {
                   <XAxis dataKey="label" angle={-28} textAnchor="end" interval={0} height={78} tick={{ fill: "#806d68", fontSize: 10 }} />
                   <YAxis yAxisId="minutes" tick={{ fill: "#806d68", fontSize: 12 }} label={{ value: "Tempo (min)", angle: -90, position: "insideLeft", fill: "#806d68", fontSize: 11 }} />
                   <YAxis yAxisId="percent" orientation="right" domain={[0, 100]} allowDataOverflow={false} tickFormatter={(value) => `${Math.min(100, Math.round(Number(value)))}%`} tick={{ fill: "#c9232b", fontSize: 12 }} />
-                  <Tooltip formatter={(value, name) => [name === "Acumulado" ? `${Number(value).toFixed(1)}%` : `${Number(value).toFixed(1)} min`, name]} />
+                  <Tooltip
+                    content={({ active, payload }) => {
+                      const item = payload?.[0]?.payload;
+                      if (!active || !item) return null;
+
+                      return (
+                        <div className="pareto-tooltip">
+                          <strong>{item.label}</strong>
+                          <span><b>Tempo:</b> {Number(item.minutes).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} min</span>
+                          <span><b>Percentual:</b> {Number(item.percentage).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%</span>
+                          <span><b>Falhas:</b> {Number(item.occurrences).toLocaleString("pt-BR")}</span>
+                        </div>
+                      );
+                    }}
+                  />
                   <Legend verticalAlign="top" height={30} />
                   <ReferenceLine yAxisId="percent" y={80} stroke="#d6928d" strokeDasharray="4 4" label={{ value: "80%", fill: "#c9232b", fontSize: 11 }} />
                   <Bar yAxisId="minutes" dataKey="minutes" name="Tempo em minutos" fill="#8f1820" radius={[3, 3, 0, 0]} />
@@ -204,21 +220,7 @@ export default function DashboardPage() {
             <span><strong>{groupedEquipmentCount(chart.data)}</strong> grupos exibidos</span>
             <span><strong>{chart.data[0]?.label}</strong> concentra {chart.data[0]?.accumulated.toFixed(1)}% do tempo</span>
           </div>
-        </section>
-      ) : (
-        <section className="dashboard-card" aria-labelledby="empty-dashboard-title">
-          <div className="dashboard-visual">
-            <Image src="/identidade_coca-1.jpg" alt="Garrafa Coca-Cola cercada por tampas vermelhas" fill sizes="(max-width: 700px) 100vw, 38vw" priority />
-            <div className="dashboard-visual-caption">Seu impacto em um só lugar</div>
-          </div>
-          <div className="empty-state-copy">
-            <p className="empty-state-kicker">Tudo pronto para começar</p>
-            <h2 id="empty-dashboard-title">Ainda não existem dados para analisar</h2>
-            <p>{loadError || "Insira uma planilha com as colunas de linha, equipamento e tempo em minutos para visualizar o Pareto."}</p>
-            <Link href="/inserirdados" className="button button-secondary">Ir para inserção de dados <span aria-hidden="true">→</span></Link>
-          </div>
-        </section>
-      )}
+      </section>
     </div>
   );
 }
