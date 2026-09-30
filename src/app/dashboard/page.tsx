@@ -134,7 +134,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="dashboard-page dashboard-with-brand-bg">
+    <div className="dashboard-page dashboard-with-brand-bg analysis-dashboard-page">
       <header className="page-header">
         <div>
           <p className="eyebrow">DASHBOARD</p>
@@ -178,7 +178,21 @@ export default function DashboardPage() {
                   <XAxis dataKey="label" angle={-28} textAnchor="end" interval={0} height={78} tick={{ fill: "#806d68", fontSize: 10 }} />
                   <YAxis yAxisId="minutes" tick={{ fill: "#806d68", fontSize: 12 }} label={{ value: "Tempo (min)", angle: -90, position: "insideLeft", fill: "#806d68", fontSize: 11 }} />
                   <YAxis yAxisId="percent" orientation="right" domain={[0, 100]} allowDataOverflow={false} tickFormatter={(value) => `${Math.min(100, Math.round(Number(value)))}%`} tick={{ fill: "#c9232b", fontSize: 12 }} />
-                  <Tooltip formatter={(value, name) => [name === "Acumulado" ? `${Number(value).toFixed(1)}%` : `${Number(value).toFixed(1)} min`, name]} />
+                  <Tooltip
+                    content={({ active, payload }) => {
+                      const item = payload?.[0]?.payload;
+                      if (!active || !item) return null;
+
+                      return (
+                        <div className="pareto-tooltip">
+                          <strong>{item.label}</strong>
+                          <span><b>Tempo:</b> {Number(item.minutes).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} min</span>
+                          <span><b>Percentual:</b> {Number(item.percentage).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%</span>
+                          <span><b>Falhas:</b> {Number(item.occurrences).toLocaleString("pt-BR")}</span>
+                        </div>
+                      );
+                    }}
+                  />
                   <Legend verticalAlign="top" height={30} />
                   <ReferenceLine yAxisId="percent" y={80} stroke="#d6928d" strokeDasharray="4 4" label={{ value: "80%", fill: "#c9232b", fontSize: 11 }} />
                   <Bar yAxisId="minutes" dataKey="minutes" name="Tempo em minutos" fill="#8f1820" radius={[3, 3, 0, 0]} />

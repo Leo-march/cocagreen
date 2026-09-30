@@ -249,7 +249,7 @@ export default function OtherChartsPage() {
   }
 
   return (
-    <div className="dashboard-page dashboard-with-brand-bg">
+    <div className="dashboard-page dashboard-with-brand-bg analysis-dashboard-page">
       <header className="page-header">
         <div>
           <p className="eyebrow">DASHBOARD</p>
