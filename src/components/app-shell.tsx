@@ -12,6 +12,10 @@ const navigation: { href: string; label: string; icon: IconName }[] = [
   { href: "/inserirdados", label: "Inserir dados", icon: "file" },
   { href: "/tabelas", label: "Tabelas", icon: "table" },
 ];
+const navigationWithInsertLast = [
+  ...navigation.filter((item) => item.href !== "/inserirdados"),
+  ...navigation.filter((item) => item.href === "/inserirdados"),
+];
 
 function NavigationIcon({ name }: { name: IconName }) {
   const common = {
@@ -58,7 +62,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </Link>
 
         <nav className="sidebar-nav">
-          {navigation.map((item) => {
+          {navigationWithInsertLast.map((item) => {
             const isActive = pathname === item.href;
             return (
               <Link
