@@ -9,6 +9,7 @@ type IconName = "chart" | "file" | "table";
 
 const navigation: { href: string; label: string; icon: IconName }[] = [
   { href: "/dashboard", label: "Dashboard", icon: "chart" },
+  { href: "/graficos", label: "Gráficos", icon: "chart" },
   { href: "/inserirdados", label: "Inserir dados", icon: "file" },
   { href: "/tabelas", label: "Tabelas", icon: "table" },
 ];
