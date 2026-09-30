@@ -1,5 +1,15 @@
 @import "tailwindcss";
 
+@theme {
+  --color-vinho: #6B1A1A;
+  --color-rosa: #C2377A;
+  --color-vinho-claro: #8B2A2A;
+  --color-status-ok: #1F7A4A;
+  --color-status-atencao: #B7791F;
+  --color-status-critico: #C0202B;
+  --font-sans: "DM Sans", system-ui, sans-serif;
+}
+
 :root {
   --background: #fbf7f5;
   --foreground: #281815;
