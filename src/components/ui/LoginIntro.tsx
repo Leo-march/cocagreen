@@ -3,7 +3,7 @@
 import { AnimatePresence, motion } from "motion/react"
 import { useEffect, useState } from "react"
 
-export default function Splash() {
+export default function LoginIntro() {
     const [visible, setVisible] = useState(true)
 
     useEffect(() => {

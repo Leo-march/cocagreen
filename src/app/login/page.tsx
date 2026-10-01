@@ -10,6 +10,8 @@ import { motion } from "motion/react"
 import type React from "react"
 import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
+import Splash from "@/components/ui/LoginIntro"
+import LoginIntro from "@/components/ui/LoginIntro"
 
 export default function Login() {
     const router = useRouter()
@@ -47,6 +49,8 @@ export default function Login() {
 
     return (
         <main className="tema-figma relative flex min-h-screen flex-col items-center justify-center bg-background px-5 py-20">
+                
+            <LoginIntro />
 
             <span className="absolute right-6 top-6 rounded-full border border-border bg-white px-3 py-1 text-xs text-muted-foreground">
                 Ambiente de demonstração
