@@ -335,7 +335,7 @@ export default function FailureClassificationPage() {
           <h1>Classificação de dados</h1>
           <p className="page-subtitle">Revise os registros de parada e classifique cada ocorrência.</p>
         </div>
-        <Link href="/api/auth/signin" className="button button-primary">Fazer login</Link>
+        <Link href="/login" className="button button-primary">Fazer login</Link>
       </header>
 
       <section className="classification-metrics" aria-label="Resumo das classificações">
