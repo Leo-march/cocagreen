@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Coca Green",
+  title: "Pareto | Coca Green",
   description: "Acompanhe seus indicadores de sustentabilidade.",
 };
 

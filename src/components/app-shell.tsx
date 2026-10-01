@@ -5,10 +5,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
-type IconName = "chart" | "file" | "table" | "settings";
+type IconName = "dashboard" | "search" | "file" | "table" | "settings";
 
 const navigation: { href: string; label: string; icon: IconName }[] = [
-  { href: "/dashboard", label: "Dashboard", icon: "chart" },
+  { href: "/dashboard", label: "Dashboard", icon: "dashboard" },
+  { href: "/pareto", label: "Análise", icon: "search" },
   { href: "/inserirdados", label: "Inserir dados", icon: "file" },
   { href: "/tabelas", label: "Tabelas", icon: "table" },
   { href: "/maquinas", label: "Máquinas", icon: "settings" },
@@ -27,10 +28,22 @@ function NavigationIcon({ name }: { name: IconName }) {
     strokeWidth: 2.25,
   };
 
-  if (name === "chart") {
+  if (name === "dashboard") {
     return (
       <svg viewBox="0 0 32 32" aria-hidden="true">
-        <path {...common} d="M5 25h6V17H5v8Zm9 0h6V10h-6v15Zm9 0h6V4h-6v21Z" />
+        <path {...common} d="M5 27h23" />
+        <rect {...common} x="7" y="18" width="4" height="9" rx="1" />
+        <rect {...common} x="14" y="12" width="4" height="15" rx="1" />
+        <rect {...common} x="21" y="5" width="4" height="22" rx="1" />
+      </svg>
+    );
+  }
+
+  if (name === "search") {
+    return (
+      <svg viewBox="0 0 32 32" aria-hidden="true">
+        <circle {...common} cx="13.5" cy="13.5" r="8" />
+        <path {...common} d="m19.5 19.5 7 7" />
       </svg>
     );
   }
