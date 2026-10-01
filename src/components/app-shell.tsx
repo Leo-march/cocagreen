@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 
 type IconName = "chart" | "file" | "table";
@@ -54,6 +54,15 @@ function NavigationIcon({ name }: { name: IconName }) {
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
+
+  if (pathname === "/login" || pathname === "/cadastro") return children;
+
+  const logout = async () => {
+    await fetch("/api/auth/logout", { method: "POST" });
+    router.replace("/login");
+    router.refresh();
+  };
 
   return (
     <div className="app-shell">
@@ -79,7 +88,12 @@ export function AppShell({ children }: { children: ReactNode }) {
             );
           })}
         </nav>
-
+        <button className="sidebar-link sidebar-logout" type="button" onClick={logout} title="Sair">
+          <svg viewBox="0 0 32 32" aria-hidden="true" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.25">
+            <path d="M19 5h7v22h-7M14 10l6 6-6 6M20 16H5" />
+          </svg>
+          <span>Sair</span>
+        </button>
       </aside>
       <main className="app-content">{children}</main>
     </div>

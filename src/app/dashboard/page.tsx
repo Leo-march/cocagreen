@@ -15,7 +15,9 @@ import {
   YAxis,
 } from "recharts";
 import { AnalysisTabs } from "@/components/analysis-tabs";
+import { ChartFilters, type ChartFilterValues } from "@/components/chart-filters";
 import { EmptyDashboardPage } from "@/components/empty-dashboard";
+import { parseChartDate, parseChartNumber } from "@/lib/chart-normalize";
 
 type DashboardData = {
   columns: string[];
@@ -29,85 +31,69 @@ function columnByPattern(columns: string[], pattern: RegExp) {
 }
 
 function parseDate(value: unknown) {
-  const date = new Date(String(value ?? "").replace(" ", "T"));
-  return Number.isNaN(date.getTime()) ? null : date;
+  return parseChartDate(value);
 }
 
 function buildParetoData(data: DashboardData, period: PeriodFilter, selectedLine: string) {
   const lineColumn = columnByPattern(data.columns, /linha|line|setor/);
-  const equipmentColumn = columnByPattern(data.columns, /equipamento|equipment|maquina|máquina/);
-  const failureColumn = columnByPattern(data.columns, /falha|causa|motivo|failure|cause|observa|subchave/);
-  const minutesColumn = columnByPattern(data.columns, /minuto|tempo.*parado|tempo|duration|minutes/);
+  const causeColumns = [
+    columnByPattern(data.columns, /subchave|subcause/),
+    columnByPattern(data.columns, /chave_1|failure|cause|falha|causa|motivo/),
+    columnByPattern(data.columns, /observa/),
+    columnByPattern(data.columns, /equipamento|equipment|maquina|machine|chave.*parada/),
+  ].filter((column, index, columns): column is string => Boolean(column) && columns.indexOf(column) === index);
+  const minutesColumn = columnByPattern(data.columns, /^minutos_de_paradas$/)
+    || columnByPattern(data.columns, /minuto.*parada|total.*minuto|tempo.*parado|duration|minutes/);
   const dateColumn = columnByPattern(data.columns, /data|date|inicio/);
 
-  if (!lineColumn || !equipmentColumn || !failureColumn || !minutesColumn || !dateColumn) {
-    return { data: [] };
-  }
+  if (!minutesColumn || !dateColumn) return { data: [] };
 
   const dates = data.rows
     .map((row) => parseDate(row[dateColumn]))
     .filter((date): date is Date => date !== null);
+  if (!dates.length) return { data: [] };
 
   const latestDate = dates.reduce((latest, current) => (current > latest ? current : latest), dates[0]);
   const days = period === "month" ? 30 : period === "week" ? 7 : 1;
-  const fromDate = latestDate ? new Date(latestDate.getTime() - (days - 1) * 86400000) : null;
-
-  const periodRows = data.rows.filter((row) => {
-    const date = parseDate(row[dateColumn]);
-    return date && (!fromDate || date >= fromDate);
-  });
-
-  const hasSelectedLine = selectedLine === "all" || periodRows.some((row) => String(row[lineColumn] ?? "").trim() === selectedLine);
-  const rowsToAnalyze = periodRows.length > 0 && hasSelectedLine ? periodRows : data.rows;
+  const fromDate = new Date(latestDate.getFullYear(), latestDate.getMonth(), latestDate.getDate() - days + 1);
+  const untilDate = new Date(latestDate.getFullYear(), latestDate.getMonth(), latestDate.getDate() + 1);
 
   const grouped = new Map<string, { label: string; minutes: number; occurrences: number }>();
-  rowsToAnalyze.forEach((row) => {
-    const line = String(row[lineColumn] ?? "").trim();
-    const equipment = String(row[equipmentColumn] ?? "").trim();
-    const cause = String(row[failureColumn] ?? "").trim();
-    const minutes = Number(String(row[minutesColumn] ?? "").replace(",", "."));
-    const rowDate = parseDate(row[dateColumn]);
-
-    if (!line || !equipment || !cause || !rowDate || !Number.isFinite(minutes) || minutes <= 0) return;
+  data.rows.forEach((row) => {
+    const date = parseDate(row[dateColumn]);
+    if (!date || date < fromDate || date >= untilDate) return;
+    const line = lineColumn ? String(row[lineColumn] ?? "").trim() : "";
     if (selectedLine !== "all" && line !== selectedLine) return;
 
-    const label = selectedLine === "all" ? line : `${line} — ${equipment}`;
+    const minutes = parseChartNumber(row[minutesColumn]);
+    if (!Number.isFinite(minutes) || minutes <= 0) return;
+    const label = causeColumns.map((column) => String(row[column] ?? "").trim()).find(Boolean)
+      || (line ? `Paradas em ${line}` : "Paradas sem causa informada");
     const current = grouped.get(label) || { label, minutes: 0, occurrences: 0 };
-    grouped.set(label, {
-      label,
-      minutes: current.minutes + minutes,
-      occurrences: current.occurrences + 1,
-    });
+    grouped.set(label, { label, minutes: current.minutes + minutes, occurrences: current.occurrences + 1 });
   });
 
   const sorted = Array.from(grouped.values()).sort((first, second) => second.minutes - first.minutes);
   const totalMinutes = sorted.reduce((sum, item) => sum + item.minutes, 0);
-
   const withPercent = sorted.map((item) => ({
     ...item,
     percentage: totalMinutes > 0 ? (item.minutes / totalMinutes) * 100 : 0,
   }));
-
   const visible = withPercent.slice(0, 12);
   const otherItems = withPercent.slice(12);
   if (otherItems.length > 0) {
     const otherMinutes = otherItems.reduce((sum, item) => sum + item.minutes, 0);
     const otherOccurrences = otherItems.reduce((sum, item) => sum + item.occurrences, 0);
-    visible.push({ label: "Outros equipamentos", minutes: otherMinutes, occurrences: otherOccurrences, percentage: totalMinutes > 0 ? (otherMinutes / totalMinutes) * 100 : 0 });
+    visible.push({ label: "Outras causas", minutes: otherMinutes, occurrences: otherOccurrences, percentage: totalMinutes > 0 ? (otherMinutes / totalMinutes) * 100 : 0 });
   }
 
   let accumulated = 0;
   const chartData = visible.map((item) => {
     accumulated += item.percentage;
-    return {
-      ...item,
-      accumulated: Math.min(accumulated, 100),
-    };
+    return { ...item, accumulated: Math.min(accumulated, 100) };
   });
-
   return { data: chartData };
 }
-
 export default function DashboardPage() {
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [loadError, setLoadError] = useState("");
@@ -115,7 +101,7 @@ export default function DashboardPage() {
   const [selectedLine, setSelectedLine] = useState("all");
 
   useEffect(() => {
-    fetch("/api/dashboard-data")
+    fetch("/api/dashboard-data?view=pareto")
       .then(async (response) => {
         const payload = await response.json() as { data?: DashboardData | null; error?: string };
         if (!response.ok) throw new Error(payload.error || "Não foi possível carregar os dados.");
@@ -136,8 +122,8 @@ export default function DashboardPage() {
     [dashboardData, period, selectedLine],
   );
 
-  if (!chart.data.length) {
-    return <EmptyDashboardPage message={loadError || "Insira uma planilha com colunas de linha, equipamento, falha, data e tempo em minutos para visualizar o Pareto."} />;
+  if (!dashboardData) {
+    return <EmptyDashboardPage message={loadError || "Importe uma planilha com data de início e minutos de parada para visualizar o Pareto."} />;
   }
 
   return (
@@ -153,35 +139,26 @@ export default function DashboardPage() {
 
       <section className="dashboard-chart-card pareto-card" aria-labelledby="chart-title">
         <AnalysisTabs active="pareto" />
-        <div className="analysis-filters" aria-label="Filtros da análise">
-          <label>
-            Período:
-            <select value={period} onChange={(event) => setPeriod(event.target.value as PeriodFilter)}>
-              <option value="month">Mês</option>
-              <option value="week">Semana</option>
-              <option value="day">Dia</option>
-            </select>
-          </label>
-          <label>
-            Setor:
-            <select value={selectedLine} onChange={(event) => setSelectedLine(event.target.value)}>
-              <option value="all">Todas as linhas</option>
-              {lineOptions.map((line) => <option key={line} value={line}>{line}</option>)}
-            </select>
-          </label>
-          <span>Analisar por: <strong>{selectedLine === "all" ? "Linha" : "Equipamento"}</strong></span>
-        </div>
-
+        <ChartFilters
+          groups={[
+            { id: "period", label: "Período", options: [{ value: "day", label: "Dia" }, { value: "week", label: "Semana" }, { value: "month", label: "Mês" }], defaultValue: ["month"] },
+            { id: "line", label: "Linha", help: "Selecione uma linha para limitar a análise.", options: [{ value: "all", label: "Todas as linhas" }, ...lineOptions.map((line) => ({ value: line, label: line }))], defaultValue: ["all"] },
+          ]}
+          value={{ period: [period], line: [selectedLine] }}
+          onApply={(next: ChartFilterValues) => { setPeriod((next.period?.[0] || "month") as PeriodFilter); setSelectedLine(next.line?.[0] || "all"); }}
+        />
         <div className="chart-heading">
           <div>
             <p className="empty-state-kicker">DADOS IMPORTADOS</p>
-            <h2 id="chart-title">Pareto de ocorrências</h2>
-            <p>Visualização do tempo acumulado por causa e linha.</p>
+            <h2 id="chart-title">Pareto de tempo parado</h2>
+            <p>Tempo parado acumulado por causa, com participação de cada causa no total.</p>
           </div>
           <Link href="/tabelas" className="button button-secondary">Ver tabela</Link>
         </div>
 
-        <div className="pareto-layout">
+        {!chart.data.length && <div className="chart-empty-message" role="status">Nenhum registro corresponde aos filtros. Ajuste as opções ou limpe os filtros.</div>}
+
+        <div className={`pareto-layout${chart.data.length ? "" : " chart-empty-layout"}`}>
           <div className="chart-container pareto-chart-container">
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={chart.data} margin={{ top: 16, right: 16, left: 0, bottom: 45 }}>
@@ -199,7 +176,7 @@ export default function DashboardPage() {
                         <strong>{item.label}</strong>
                         <span><b>Tempo:</b> {Number(item.minutes).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} min</span>
                         <span><b>Percentual:</b> {Number(item.percentage).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%</span>
-                        <span><b>Falhas:</b> {Number(item.occurrences).toLocaleString("pt-BR")}</span>
+                        <span><b>Registros:</b> {Number(item.occurrences).toLocaleString("pt-BR")}</span>
                       </div>
                     );
                   }}
@@ -215,13 +192,13 @@ export default function DashboardPage() {
           <aside className="pareto-side-panel">
             <div className="pareto-insight">
               <p>INSIGHT</p>
-              <strong>{chart.data.slice(0, 3).reduce((sum, item) => sum + item.percentage, 0).toFixed(0)}% das ocorrências</strong>
-              <span>estão concentradas nas 3 principais causas.</span>
+              <strong>{chart.data.slice(0, 3).reduce((sum, item) => sum + item.percentage, 0).toFixed(0)}% do tempo parado</strong>
+              <span>está concentrado nas 3 principais causas.</span>
             </div>
             <div className="pareto-table-wrap">
               <table className="pareto-table">
                 <thead>
-                  <tr><th>Causa</th><th>Ocorr.</th><th>% acum.</th></tr>
+                  <tr><th>Causa / sistema</th><th>Registros</th><th>% acum.</th></tr>
                 </thead>
                 <tbody>
                   {chart.data.slice(0, 7).map((item) => (

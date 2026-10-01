@@ -17,48 +17,43 @@ import {
   YAxis,
 } from "recharts";
 import { AnalysisTabs } from "@/components/analysis-tabs";
+import { ChartFilters, type ChartFilterGroup, type ChartFilterValues } from "@/components/chart-filters";
 import { EmptyDashboardPage } from "@/components/empty-dashboard";
+import { SupplementalCharts, type ChartType } from "@/components/supplemental-charts";
+import { parseChartDate, parseChartNumber } from "@/lib/chart-normalize";
 
 type DashboardData = {
   columns: string[];
   rows: Record<string, unknown>[];
 };
 
-type ChartKind = "pareto" | "pizza" | "barras" | "linha";
+type ChartKind = "pizza" | "barras" | "linha" | ChartType;
 type PeriodFilter = "all" | "7" | "30" | "90";
-type FilterState = { period: PeriodFilter; dimension: string; filterColumn: string; category: string };
+type FilterState = { period: PeriodFilter; dimension: string; filterColumn: string; categories: string[] };
 
-type ChartEntry = { name: string; value: number; accumulated?: number };
+type ChartEntry = { name: string; value: number };
 
 const chartKinds: { value: ChartKind; label: string }[] = [
-  { value: "pareto", label: "Pareto" },
   { value: "pizza", label: "Pizza" },
   { value: "barras", label: "Barras" },
   { value: "linha", label: "Linha" },
+  { value: "criticality", label: "Criticidade" },
+  { value: "projection", label: "Projeção" },
+  { value: "waterfall", label: "Cascata de paradas" },
 ];
 
 const palette = ["#c9232b", "#8f1820", "#d6928d", "#806d68", "#4b2b25", "#e8b1a9", "#b34953", "#f3c6c0", "#9b4735", "#c37d77"];
+const isBasicChart = (kind: ChartKind): kind is "pizza" | "barras" | "linha" => kind === "pizza" || kind === "barras" || kind === "linha";
 
 const columnByPattern = (columns: string[], patterns: RegExp[]) =>
   columns.find((column) => patterns.some((pattern) => pattern.test(column.toLowerCase())));
 
 function parseDate(value: unknown) {
-  const text = String(value ?? "").trim();
-  if (!text) return null;
-  const brazilianDate = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
-  const date = brazilianDate
-    ? new Date(Number(brazilianDate[3]), Number(brazilianDate[2]) - 1, Number(brazilianDate[1]))
-    : new Date(text.replace(" ", "T"));
-  return Number.isNaN(date.getTime()) ? null : date;
+  return parseChartDate(value);
 }
 
 function normalizeValue(value: unknown) {
-  const text = String(value ?? "").trim();
-  if (!text) return 0;
-  const thousandsOnly = /^-?\d{1,3}(\.\d{3})+$/.test(text);
-  const normalized = text.includes(",") || thousandsOnly ? text.replace(/\./g, "").replace(",", ".") : text;
-  const numeric = Number(normalized);
-  return Number.isFinite(numeric) ? numeric : 0;
+  return parseChartNumber(value);
 }
 
 function toLabel(value: unknown) {
@@ -100,7 +95,7 @@ function buildChartSeries(data: DashboardData, filters: FilterState, chartKind: 
   const metricColumn = valueColumn || "__count__";
   const rowsInRange = getPeriodRows(data.rows, dateColumn, filters.period);
   const groupColumn = filters.dimension || observationColumn || lineColumn || equipmentColumn || dateColumn || metricColumn;
-  const filteredRows = rowsInRange.filter((row) => !filters.category || toLabel(row[filters.filterColumn]) === filters.category);
+  const filteredRows = rowsInRange.filter((row) => !filters.categories.length || filters.categories.includes(toLabel(row[filters.filterColumn])));
 
   const grouped = new Map<string, number>();
   filteredRows.forEach((row) => {
@@ -131,14 +126,8 @@ function buildChartSeries(data: DashboardData, filters: FilterState, chartKind: 
     ? [...visibleEntries, { name: "Outros", value: remainder.reduce((sum, item) => sum + item.value, 0) }]
     : visibleEntries;
 
-  let accumulated = 0;
-  const paretoData = chartData.map((item) => {
-    accumulated += totalValue > 0 ? (item.value / totalValue) * 100 : 0;
-    return { ...item, accumulated: Math.min(accumulated, 100) };
-  });
-
   return {
-    chartData: chartKind === "pareto" ? paretoData : chartData,
+    chartData,
     summary: `${chartData[0]?.name ?? "Categoria"} concentra ${totalValue > 0 ? ((chartData[0]?.value ?? 0) / totalValue * 100).toFixed(1) : "0,0"}% dos registros.`,
   };
 }
@@ -146,10 +135,9 @@ function buildChartSeries(data: DashboardData, filters: FilterState, chartKind: 
 export default function GraphicsPage() {
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [loadError, setLoadError] = useState("");
-  const [chartKind, setChartKind] = useState<ChartKind>("pareto");
-  const [filtersOpen, setFiltersOpen] = useState(false);
-  const [filters, setFilters] = useState<FilterState>({ period: "all", dimension: "", filterColumn: "", category: "" });
-  const [draftFilters, setDraftFilters] = useState<FilterState>({ period: "all", dimension: "", filterColumn: "", category: "" });
+  const [chartKind, setChartKind] = useState<ChartKind>("pizza");
+  const [filters, setFilters] = useState<FilterState>({ period: "all", dimension: "", filterColumn: "", categories: [] });
+  const [draftCategoryColumn, setDraftCategoryColumn] = useState("");
 
   useEffect(() => {
     fetch("/api/dashboard-data")
@@ -165,26 +153,27 @@ export default function GraphicsPage() {
     /linha|line|setor|area|equip|maquina|observa|falha|causa|motivo|defeito|incidente|problema|status|obs|descricao|comentario|data|date|dia|mes/i.test(column),
   ) || [], [dashboardData]);
   const selectedDimension = filters.dimension || dimensions[0] || dashboardData?.columns[0] || "";
-  const selectedFilterColumn = draftFilters.filterColumn || dimensions[1] || dimensions[0] || "";
-  const categories = useMemo(() => dashboardData && selectedFilterColumn
-    ? Array.from(new Set(dashboardData.rows.map((row) => toLabel(row[selectedFilterColumn])).filter((label) => label !== "Sem dado"))).sort()
-    : [], [dashboardData, selectedFilterColumn]);
-  const activeFilterCount = Number(filters.period !== "all") + Number(!!filters.category);
+  const dimensionOptions = dimensions.length ? dimensions : dashboardData?.columns.slice(0, 1) || [];
+  const defaultGroupColumn = dimensionOptions[0] || "";
+  const defaultFilterColumn = dimensionOptions[1] || dimensionOptions[0] || "";
+  const filterOptions = (column: string) => dashboardData && column
+    ? Array.from(new Set(dashboardData.rows.map((row) => toLabel(row[column])).filter((label) => label !== "Sem dado"))).sort()
+    : [];
+  const groups: ChartFilterGroup[] = [
+    { id: "period", label: "Período", options: [{ value: "all", label: "Todo o período" }, { value: "7", label: "Últimos 7 dias" }, { value: "30", label: "Últimos 30 dias" }, { value: "90", label: "Últimos 90 dias" }], defaultValue: ["all"] },
+    { id: "dimension", label: "Agrupar gráfico por", help: "Define o que cada barra, fatia ou ponto representa.", options: dimensionOptions.map((column) => ({ value: column, label: column })), defaultValue: [defaultGroupColumn] },
+    { id: "filterColumn", label: "Restringir dados por", help: "Define quais linhas entram. Para comparar categorias, escolha uma coluna diferente da usada para agrupar.", options: dimensionOptions.map((column) => ({ value: column, label: column })), defaultValue: [defaultFilterColumn], resetOnChange: ["categories"] },
+    { id: "categories", label: `Categorias em ${draftCategoryColumn || defaultFilterColumn}`, help: "Selecione uma ou mais opções. Sem seleção, todas entram na análise.", options: filterOptions(draftCategoryColumn || defaultFilterColumn).map((label) => ({ value: label, label })), multiple: true, selectAllLabel: "Selecionar todas" },
+  ];
 
   const chart = useMemo(() => {
     if (!dashboardData) return { chartData: [] as ChartEntry[], summary: "Aguardando dados." };
-    return buildChartSeries(dashboardData, { ...filters, dimension: selectedDimension }, chartKind);
+    return buildChartSeries(dashboardData, { ...filters, dimension: selectedDimension }, isBasicChart(chartKind) ? chartKind : "pizza");
   }, [dashboardData, filters, selectedDimension, chartKind]);
-
-  const clearFilters = () => {
-    const cleared: FilterState = { period: "all", dimension: dimensions[0] || "", filterColumn: dimensions[1] || dimensions[0] || "", category: "" };
-    setFilters(cleared);
-    setDraftFilters(cleared);
-  };
 
   const totalSum = chart.chartData.reduce((sum, item) => sum + item.value, 0);
 
-  if (!dashboardData || !chart.chartData.length) {
+  if (!dashboardData) {
     return <EmptyDashboardPage message={loadError || "Importe uma planilha para gerar gráficos automáticos por observações, linhas, equipamentos e datas."} />;
   }
 
@@ -201,39 +190,22 @@ export default function GraphicsPage() {
       <section className="dashboard-chart-card pareto-card" aria-labelledby="graphics-title">
         <AnalysisTabs active="graficos" />
 
-        <div className="chart-filter-panel">
-          <button className="chart-filter-toggle" type="button" aria-expanded={filtersOpen} onClick={() => setFiltersOpen((open) => !open)}>
-            <span aria-hidden="true">☷</span> Filtros {activeFilterCount > 0 && <span className="chart-filter-count">{activeFilterCount}</span>}
-            <span className="chart-filter-chevron" aria-hidden="true">{filtersOpen ? "⌃" : "⌄"}</span>
-          </button>
-          {filtersOpen && <div className="chart-filter-drawer" aria-label="Filtros dos gráficos">
-            <label>Período
-              <select value={draftFilters.period} onChange={(event) => setDraftFilters({ ...draftFilters, period: event.target.value as PeriodFilter })}>
-                <option value="all">Todo o período</option><option value="7">Últimos 7 dias</option><option value="30">Últimos 30 dias</option><option value="90">Últimos 90 dias</option>
-              </select>
-            </label>
-            <label>Analisar por
-              <select value={draftFilters.dimension || dimensions[0] || ""} onChange={(event) => setDraftFilters({ ...draftFilters, dimension: event.target.value, category: "" })}>
-                {dimensions.map((column) => <option key={column} value={column}>{column}</option>)}
-              </select>
-            </label>
-            <label>Filtrar por
-              <select value={selectedFilterColumn} onChange={(event) => setDraftFilters({ ...draftFilters, filterColumn: event.target.value, category: "" })}>
-                {dimensions.map((column) => <option key={column} value={column}>{column}</option>)}
-              </select>
-            </label>
-            <label>Categoria
-              <select value={draftFilters.category} onChange={(event) => setDraftFilters({ ...draftFilters, category: event.target.value })}>
-                <option value="">Todas</option>{categories.map((category) => <option key={category} value={category}>{category}</option>)}
-              </select>
-            </label>
-            <div className="chart-filter-actions">
-              <button type="button" onClick={clearFilters}>Limpar</button>
-              <button type="button" onClick={() => { setFilters({ ...draftFilters, dimension: draftFilters.dimension || dimensions[0] || "", filterColumn: selectedFilterColumn }); setFiltersOpen(false); }}>Aplicar filtros</button>
-            </div>
-          </div>}
-        </div>
-
+        {isBasicChart(chartKind) && <ChartFilters
+          groups={groups}
+          value={{ period: [filters.period], dimension: [selectedDimension], filterColumn: [filters.filterColumn || defaultFilterColumn], categories: filters.categories }}
+          onDraftChange={(next) => setDraftCategoryColumn(next.filterColumn?.[0] || defaultFilterColumn)}
+          onApply={(next: ChartFilterValues) => {
+            const filterColumn = next.filterColumn?.[0] || defaultFilterColumn;
+            const validCategories = new Set(filterOptions(filterColumn));
+            setFilters({
+              period: (next.period?.[0] || "all") as PeriodFilter,
+              dimension: next.dimension?.[0] || defaultGroupColumn,
+              filterColumn,
+              categories: (next.categories || []).filter((category) => validCategories.has(category)),
+            });
+            setDraftCategoryColumn(filterColumn);
+          }}
+        />}
         <div className="chart-kind-bar" aria-label="Tipos de gráfico">
           {chartKinds.map((kind) => (
             <button
@@ -247,6 +219,9 @@ export default function GraphicsPage() {
           ))}
         </div>
 
+        {!isBasicChart(chartKind) && <SupplementalCharts chartType={chartKind} />}
+
+        {isBasicChart(chartKind) && <>
         <div className="chart-heading">
           <div>
             <p className="empty-state-kicker">GRÁFICOS DINÂMICOS</p>
@@ -255,7 +230,7 @@ export default function GraphicsPage() {
           </div>
         </div>
 
-        <div className="chart-container pareto-chart-container">
+        {chart.chartData.length ? <div className="chart-container pareto-chart-container">
           <ResponsiveContainer width="100%" height="100%">
             {chartKind === "pizza" ? (
               <PieChart>
@@ -288,25 +263,15 @@ export default function GraphicsPage() {
                   ))}
                 </Bar>
               </BarChart>
-            ) : (
-              <ComposedChart data={chart.chartData} margin={{ top: 16, right: 18, left: 0, bottom: 40 }}>
-                <CartesianGrid stroke="#eadbd7" strokeDasharray="4 4" vertical={false} />
-                <XAxis dataKey="name" interval={0} angle={-18} textAnchor="end" height={70} tick={{ fill: "#806d68", fontSize: 10 }} />
-                <YAxis yAxisId="value" tick={{ fill: "#806d68", fontSize: 11 }} />
-                <YAxis yAxisId="percent" orientation="right" domain={[0, 100]} tickFormatter={(value) => `${Math.round(Number(value))}%`} tick={{ fill: "#c9232b", fontSize: 11 }} />
-                <Tooltip formatter={(value) => [Number(value).toLocaleString("pt-BR"), "Valor"]} />
-                <Legend />
-                <Bar yAxisId="value" dataKey="value" name="Valor" fill="#8f1820" radius={[5, 5, 0, 0]} />
-                <Line yAxisId="percent" dataKey="accumulated" name="Acumulado (%)" type="monotone" stroke="#c9232b" strokeWidth={2.5} dot={{ r: 3, fill: "#fff", stroke: "#c9232b", strokeWidth: 2 }} />
-              </ComposedChart>
-            )}
+            ) : null}
           </ResponsiveContainer>
-        </div>
+        </div> : <div className="chart-empty-message" role="status">{chart.summary}. Ajuste ou limpe os filtros para ver mais resultados.</div>}
 
-        <div className="pareto-summary">
+        {chart.chartData.length > 0 && <div className="pareto-summary">
           <span><strong>{chart.chartData.length}</strong> categorias exibidas</span>
           <span><strong>{Number(totalSum).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}</strong> total do filtro</span>
-        </div>
+        </div>}
+        </>}
       </section>
     </div>
   );

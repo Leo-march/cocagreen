@@ -95,7 +95,7 @@ export async function saveImportedTable(
   }
 }
 
-export async function getLatestImportedTable() {
+export async function getLatestImportedTable(options: { limit?: number; include?: string[] } = {}) {
   const pool = mysql.createPool(getConfig());
 
   try {
@@ -109,9 +109,6 @@ export async function getLatestImportedTable() {
     const table = tables[0]?.table_name;
     if (!table) return null;
 
-    const [rows] = await pool.query<(RowDataPacket & Record<string, unknown>)[]>(
-      `SELECT * FROM ${identifier(table)} ORDER BY id ASC LIMIT 1000`,
-    );
     const [columns] = await pool.query<(RowDataPacket & { column_name: string })[]>(
       `SELECT COLUMN_NAME AS column_name
        FROM information_schema.COLUMNS
@@ -120,10 +117,19 @@ export async function getLatestImportedTable() {
        ORDER BY ORDINAL_POSITION`,
       [table],
     );
+    const availableColumns = columns.map(({ column_name }) => column_name);
+    const requestedColumns = options.include?.length
+      ? availableColumns.filter((column) => options.include?.some((part) => column.includes(part)))
+      : availableColumns;
+    const selectedColumns = requestedColumns.length ? requestedColumns : availableColumns;
+    const [rows] = await pool.query<(RowDataPacket & Record<string, unknown>)[]>(
+      `SELECT ${selectedColumns.map(identifier).join(", ")} FROM ${identifier(table)} ORDER BY id ASC LIMIT ?`,
+      [Math.max(1, Math.min(options.limit ?? 1000, 100000))],
+    );
 
     return {
       tableName: table,
-      columns: columns.map(({ column_name }) => column_name),
+      columns: selectedColumns,
       rows,
     };
   } finally {
