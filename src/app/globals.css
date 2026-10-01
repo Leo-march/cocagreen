@@ -82,6 +82,18 @@ h1 { font-size: clamp(32px, 4vw, 44px); letter-spacing: -.04em; line-height: 1; 
 .chart-filter-button, .chart-type-button { background: #fff; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); cursor: pointer; font-size: 12px; font-weight: 700; padding: 9px 14px; transition: all .2s ease; }
 .chart-filter-button:hover, .chart-type-button:hover { border-color: #c88d88; color: var(--brand-dark); }
 .chart-filter-button-active, .chart-type-button-active { background: var(--brand-light); border-color: #d6928d; color: var(--brand-dark); box-shadow: 0 0 0 2px rgba(201, 35, 43, .06); }
+.chart-filter-panel { margin: 22px 0 16px; position: relative; }
+.chart-filter-toggle { align-items: center; background: #fff; border: 1px solid var(--line); border-radius: 10px; color: var(--ink); cursor: pointer; display: inline-flex; font: inherit; font-weight: 700; gap: 10px; min-height: 46px; padding: 0 16px; }
+.chart-filter-toggle:hover, .chart-filter-toggle[aria-expanded="true"] { border-color: #c88d88; }
+.chart-filter-toggle > span:first-child { color: var(--brand-dark); font-size: 19px; }
+.chart-filter-count { align-items: center; background: var(--brand-dark); border-radius: 999px; color: #fff; display: inline-flex; font-size: 11px; height: 20px; justify-content: center; min-width: 20px; }
+.chart-filter-chevron { color: var(--muted); margin-left: 8px; }
+.chart-filter-drawer { background: #fff; border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 12px 32px rgba(40, 24, 21, .12); display: grid; gap: 14px; grid-template-columns: repeat(4, minmax(120px, 1fr)); margin-top: 10px; max-width: 920px; padding: 18px; }
+.chart-filter-drawer label { color: var(--muted); display: grid; font-size: 12px; font-weight: 700; gap: 7px; }
+.chart-filter-drawer select { background: #fff; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); font: inherit; min-height: 42px; min-width: 0; padding: 0 10px; }
+.chart-filter-actions { align-items: end; display: flex; gap: 8px; grid-column: 1 / -1; justify-content: flex-end; }
+.chart-filter-actions button { background: #fff; border: 1px solid var(--line); border-radius: 8px; color: var(--brand-dark); cursor: pointer; font: inherit; font-weight: 700; min-height: 40px; padding: 0 14px; }
+.chart-filter-actions button:last-child { background: var(--brand-dark); border-color: var(--brand-dark); color: #fff; }
 .compact-selector label { align-items: center; border: 1px solid var(--line); border-radius: 8px; color: var(--muted); display: inline-flex; font-size: 11px; gap: 8px; padding: 8px 12px; }
 .compact-selector select { background: transparent; border: 0; color: var(--ink); cursor: pointer; font: inherit; font-weight: 700; outline: 0; }
 .chart-kind-bar { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; }
@@ -266,6 +278,8 @@ h1 { font-size: clamp(32px, 4vw, 44px); letter-spacing: -.04em; line-height: 1; 
   .jackknife-table-wrap { max-height: 440px; }
   .jackknife-formulas { flex-direction: column; }
   .pareto-summary { align-items: flex-start; flex-direction: column; gap: 8px; }
+  .chart-filter-drawer { grid-template-columns: 1fr; }
+  .chart-filter-actions { grid-column: auto; }
   .chart-heading { align-items: flex-start; flex-direction: column; }
   .chart-heading .button { align-self: stretch; }
   .dashboard-visual, .insert-visual, .table-visual { flex-basis: auto; height: 240px; min-width: 100%; width: 100%; }

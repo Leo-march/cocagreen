@@ -25,28 +25,16 @@ type DashboardData = {
 };
 
 type ChartKind = "pareto" | "pizza" | "barras" | "linha";
-type ViewMode = "all" | "observacoes" | "linhas" | "equipamentos" | "dias";
-type PeriodFilter = "all" | "day" | "week" | "month";
+type PeriodFilter = "all" | "7" | "30" | "90";
+type FilterState = { period: PeriodFilter; dimension: string; filterColumn: string; category: string };
 
-type ChartEntry = {
-  name: string;
-  value: number;
-  accumulated?: number;
-};
+type ChartEntry = { name: string; value: number; accumulated?: number };
 
 const chartKinds: { value: ChartKind; label: string }[] = [
   { value: "pareto", label: "Pareto" },
   { value: "pizza", label: "Pizza" },
   { value: "barras", label: "Barras" },
   { value: "linha", label: "Linha" },
-];
-
-const viewModes: { value: ViewMode; label: string }[] = [
-  { value: "all", label: "Todos" },
-  { value: "observacoes", label: "Observações" },
-  { value: "linhas", label: "Linhas" },
-  { value: "equipamentos", label: "Equipamentos" },
-  { value: "dias", label: "Dias" },
 ];
 
 const palette = ["#c9232b", "#8f1820", "#d6928d", "#806d68", "#4b2b25", "#e8b1a9", "#b34953", "#f3c6c0", "#9b4735", "#c37d77"];
@@ -67,7 +55,9 @@ function parseDate(value: unknown) {
 function normalizeValue(value: unknown) {
   const text = String(value ?? "").trim();
   if (!text) return 0;
-  const numeric = Number(text.replace(".", "").replace(",", "."));
+  const thousandsOnly = /^-?\d{1,3}(\.\d{3})+$/.test(text);
+  const normalized = text.includes(",") || thousandsOnly ? text.replace(/\./g, "").replace(",", ".") : text;
+  const numeric = Number(normalized);
   return Number.isFinite(numeric) ? numeric : 0;
 }
 
@@ -86,16 +76,17 @@ function getPeriodRows(rows: Record<string, unknown>[], dateColumn: string | und
   if (!dates.length) return rows;
 
   const latestDate = dates.reduce((latest, current) => (current > latest ? current : latest), dates[0]);
-  const days = period === "day" ? 1 : period === "week" ? 7 : 30;
-  const fromDate = new Date(latestDate.getTime() - (days - 1) * 86400000);
+  const days = Number(period);
+  const fromDate = new Date(latestDate.getFullYear(), latestDate.getMonth(), latestDate.getDate() - days + 1);
+  const untilDate = new Date(latestDate.getFullYear(), latestDate.getMonth(), latestDate.getDate() + 1);
 
   return rows.filter((row) => {
     const date = parseDate(row[dateColumn]);
-    return date ? date >= fromDate : true;
+    return date ? date >= fromDate && date < untilDate : false;
   });
 }
 
-function buildChartSeries(data: DashboardData, viewMode: ViewMode, chartKind: ChartKind, period: PeriodFilter) {
+function buildChartSeries(data: DashboardData, filters: FilterState, chartKind: ChartKind) {
   const lineColumn = columnByPattern(data.columns, [/linha|line|setor|area/]);
   const equipmentColumn = columnByPattern(data.columns, [/equipamento|equipment|maquina|máquina|equipe|equip/]);
   const observationColumn = columnByPattern(data.columns, [/observa|falha|causa|motivo|defeito|incidente|problema|status|obs|descricao|comentario/]);
@@ -107,26 +98,15 @@ function buildChartSeries(data: DashboardData, viewMode: ViewMode, chartKind: Ch
   }
 
   const metricColumn = valueColumn || "__count__";
-  const rowsInRange = getPeriodRows(data.rows, dateColumn, period);
-
-  const filteredRows = rowsInRange.filter((row) => {
-    if (viewMode === "observacoes") return observationColumn ? String(row[observationColumn] ?? "").trim() !== "" : true;
-    if (viewMode === "linhas") return lineColumn ? String(row[lineColumn] ?? "").trim() !== "" : true;
-    if (viewMode === "equipamentos") return equipmentColumn ? String(row[equipmentColumn] ?? "").trim() !== "" : true;
-    if (viewMode === "dias") return dateColumn ? !!parseDate(row[dateColumn]) : true;
-    return true;
-  });
-
-  const groupColumn =
-    viewMode === "observacoes" ? observationColumn || equipmentColumn || lineColumn || dateColumn || metricColumn :
-    viewMode === "linhas" ? lineColumn || observationColumn || equipmentColumn || dateColumn || metricColumn :
-    viewMode === "equipamentos" ? equipmentColumn || lineColumn || observationColumn || dateColumn || metricColumn :
-    viewMode === "dias" ? dateColumn || observationColumn || lineColumn || equipmentColumn || metricColumn :
-    observationColumn || lineColumn || equipmentColumn || dateColumn || metricColumn;
+  const rowsInRange = getPeriodRows(data.rows, dateColumn, filters.period);
+  const groupColumn = filters.dimension || observationColumn || lineColumn || equipmentColumn || dateColumn || metricColumn;
+  const filteredRows = rowsInRange.filter((row) => !filters.category || toLabel(row[filters.filterColumn]) === filters.category);
 
   const grouped = new Map<string, number>();
   filteredRows.forEach((row) => {
-    const label = groupColumn ? toLabel(row[groupColumn]) : "Dados";
+    const rawLabel = groupColumn ? toLabel(row[groupColumn]) : "Dados";
+    const groupedDate = groupColumn === dateColumn ? parseDate(row[groupColumn]) : null;
+    const label = groupedDate ? groupedDate.toLocaleDateString("pt-BR") : rawLabel;
     const numeric = metricColumn === "__count__" ? 1 : normalizeValue(row[metricColumn]);
     if (groupColumn && String(row[groupColumn] ?? "").trim() === "" && metricColumn !== "__count__") {
       return;
@@ -134,7 +114,11 @@ function buildChartSeries(data: DashboardData, viewMode: ViewMode, chartKind: Ch
     grouped.set(label, (grouped.get(label) || 0) + numeric);
   });
 
-  const entries = Array.from(grouped, ([name, value]) => ({ name, value })).sort((first, second) => second.value - first.value);
+  const entries = Array.from(grouped, ([name, value]) => ({ name, value })).sort((first, second) => {
+    if (groupColumn === dateColumn) return (parseDate(first.name)?.getTime() || 0) - (parseDate(second.name)?.getTime() || 0);
+    if (chartKind === "linha") return first.name.localeCompare(second.name, "pt-BR");
+    return second.value - first.value;
+  });
   const totalValue = entries.reduce((sum, item) => sum + item.value, 0);
 
   if (!entries.length) {
@@ -163,8 +147,9 @@ export default function GraphicsPage() {
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [loadError, setLoadError] = useState("");
   const [chartKind, setChartKind] = useState<ChartKind>("pareto");
-  const [viewMode, setViewMode] = useState<ViewMode>("all");
-  const [period, setPeriod] = useState<PeriodFilter>("month");
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [filters, setFilters] = useState<FilterState>({ period: "all", dimension: "", filterColumn: "", category: "" });
+  const [draftFilters, setDraftFilters] = useState<FilterState>({ period: "all", dimension: "", filterColumn: "", category: "" });
 
   useEffect(() => {
     fetch("/api/dashboard-data")
@@ -176,10 +161,26 @@ export default function GraphicsPage() {
       .catch((error: unknown) => setLoadError(error instanceof Error ? error.message : "Não foi possível carregar os dados."));
   }, []);
 
+  const dimensions = useMemo(() => dashboardData?.columns.filter((column) =>
+    /linha|line|setor|area|equip|maquina|observa|falha|causa|motivo|defeito|incidente|problema|status|obs|descricao|comentario|data|date|dia|mes/i.test(column),
+  ) || [], [dashboardData]);
+  const selectedDimension = filters.dimension || dimensions[0] || dashboardData?.columns[0] || "";
+  const selectedFilterColumn = draftFilters.filterColumn || dimensions[1] || dimensions[0] || "";
+  const categories = useMemo(() => dashboardData && selectedFilterColumn
+    ? Array.from(new Set(dashboardData.rows.map((row) => toLabel(row[selectedFilterColumn])).filter((label) => label !== "Sem dado"))).sort()
+    : [], [dashboardData, selectedFilterColumn]);
+  const activeFilterCount = Number(filters.period !== "all") + Number(!!filters.category);
+
   const chart = useMemo(() => {
     if (!dashboardData) return { chartData: [] as ChartEntry[], summary: "Aguardando dados." };
-    return buildChartSeries(dashboardData, viewMode, chartKind, period);
-  }, [dashboardData, viewMode, chartKind, period]);
+    return buildChartSeries(dashboardData, { ...filters, dimension: selectedDimension }, chartKind);
+  }, [dashboardData, filters, selectedDimension, chartKind]);
+
+  const clearFilters = () => {
+    const cleared: FilterState = { period: "all", dimension: dimensions[0] || "", filterColumn: dimensions[1] || dimensions[0] || "", category: "" };
+    setFilters(cleared);
+    setDraftFilters(cleared);
+  };
 
   const totalSum = chart.chartData.reduce((sum, item) => sum + item.value, 0);
 
@@ -200,31 +201,37 @@ export default function GraphicsPage() {
       <section className="dashboard-chart-card pareto-card" aria-labelledby="graphics-title">
         <AnalysisTabs active="graficos" />
 
-        <div className="chart-filter-bar" aria-label="Filtros dos gráficos">
-          <div className="chart-filter-group">
-            {viewModes.map((mode) => (
-              <button
-                key={mode.value}
-                type="button"
-                className={`chart-filter-button${viewMode === mode.value ? " chart-filter-button-active" : ""}`}
-                onClick={() => setViewMode(mode.value)}
-              >
-                {mode.label}
-              </button>
-            ))}
-          </div>
-
-          <div className="chart-filter-group compact-selector">
-            <label>
-              Período:
-              <select value={period} onChange={(event) => setPeriod(event.target.value as PeriodFilter)}>
-                <option value="all">Tudo</option>
-                <option value="day">Dia</option>
-                <option value="week">Semana</option>
-                <option value="month">Mês</option>
+        <div className="chart-filter-panel">
+          <button className="chart-filter-toggle" type="button" aria-expanded={filtersOpen} onClick={() => setFiltersOpen((open) => !open)}>
+            <span aria-hidden="true">☷</span> Filtros {activeFilterCount > 0 && <span className="chart-filter-count">{activeFilterCount}</span>}
+            <span className="chart-filter-chevron" aria-hidden="true">{filtersOpen ? "⌃" : "⌄"}</span>
+          </button>
+          {filtersOpen && <div className="chart-filter-drawer" aria-label="Filtros dos gráficos">
+            <label>Período
+              <select value={draftFilters.period} onChange={(event) => setDraftFilters({ ...draftFilters, period: event.target.value as PeriodFilter })}>
+                <option value="all">Todo o período</option><option value="7">Últimos 7 dias</option><option value="30">Últimos 30 dias</option><option value="90">Últimos 90 dias</option>
               </select>
             </label>
-          </div>
+            <label>Analisar por
+              <select value={draftFilters.dimension || dimensions[0] || ""} onChange={(event) => setDraftFilters({ ...draftFilters, dimension: event.target.value, category: "" })}>
+                {dimensions.map((column) => <option key={column} value={column}>{column}</option>)}
+              </select>
+            </label>
+            <label>Filtrar por
+              <select value={selectedFilterColumn} onChange={(event) => setDraftFilters({ ...draftFilters, filterColumn: event.target.value, category: "" })}>
+                {dimensions.map((column) => <option key={column} value={column}>{column}</option>)}
+              </select>
+            </label>
+            <label>Categoria
+              <select value={draftFilters.category} onChange={(event) => setDraftFilters({ ...draftFilters, category: event.target.value })}>
+                <option value="">Todas</option>{categories.map((category) => <option key={category} value={category}>{category}</option>)}
+              </select>
+            </label>
+            <div className="chart-filter-actions">
+              <button type="button" onClick={clearFilters}>Limpar</button>
+              <button type="button" onClick={() => { setFilters({ ...draftFilters, dimension: draftFilters.dimension || dimensions[0] || "", filterColumn: selectedFilterColumn }); setFiltersOpen(false); }}>Aplicar filtros</button>
+            </div>
+          </div>}
         </div>
 
         <div className="chart-kind-bar" aria-label="Tipos de gráfico">
@@ -285,11 +292,12 @@ export default function GraphicsPage() {
               <ComposedChart data={chart.chartData} margin={{ top: 16, right: 18, left: 0, bottom: 40 }}>
                 <CartesianGrid stroke="#eadbd7" strokeDasharray="4 4" vertical={false} />
                 <XAxis dataKey="name" interval={0} angle={-18} textAnchor="end" height={70} tick={{ fill: "#806d68", fontSize: 10 }} />
-                <YAxis tick={{ fill: "#806d68", fontSize: 11 }} />
+                <YAxis yAxisId="value" tick={{ fill: "#806d68", fontSize: 11 }} />
+                <YAxis yAxisId="percent" orientation="right" domain={[0, 100]} tickFormatter={(value) => `${Math.round(Number(value))}%`} tick={{ fill: "#c9232b", fontSize: 11 }} />
                 <Tooltip formatter={(value) => [Number(value).toLocaleString("pt-BR"), "Valor"]} />
                 <Legend />
-                <Bar dataKey="value" name="Valor" fill="#8f1820" radius={[5, 5, 0, 0]} />
-                <Line dataKey="accumulated" name="Acumulado" type="monotone" stroke="#c9232b" strokeWidth={2.5} dot={{ r: 3, fill: "#fff", stroke: "#c9232b", strokeWidth: 2 }} />
+                <Bar yAxisId="value" dataKey="value" name="Valor" fill="#8f1820" radius={[5, 5, 0, 0]} />
+                <Line yAxisId="percent" dataKey="accumulated" name="Acumulado (%)" type="monotone" stroke="#c9232b" strokeWidth={2.5} dot={{ r: 3, fill: "#fff", stroke: "#c9232b", strokeWidth: 2 }} />
               </ComposedChart>
             )}
           </ResponsiveContainer>
