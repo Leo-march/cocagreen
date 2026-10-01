@@ -60,6 +60,10 @@ function NavigationIcon({ name }: { name: IconName }) {
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
 
+  if (pathname === "/login") {
+    return <>{children}</>;
+  }
+
   return (
     <div className="app-shell">
       <aside className="sidebar" aria-label="Navegação principal">

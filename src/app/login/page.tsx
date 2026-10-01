@@ -19,7 +19,7 @@ export default function Login() {
     const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
     // Nome temporário para o protótipo
-    const demoName = "Usuário"
+    const demoName = "Talita"
 
     useEffect(() => {
         document.title = "Entrar | Manutenção Industrial · Marília"
@@ -46,7 +46,7 @@ export default function Login() {
     }
 
     return (
-        <main className="relative flex min-h-screen flex-col items-center justify-center bg-background px-5 py-20">
+        <main className="tema-figma relative flex min-h-screen flex-col items-center justify-center bg-background px-5 py-20">
 
             <span className="absolute right-6 top-6 rounded-full border border-border bg-white px-3 py-1 text-xs text-muted-foreground">
                 Ambiente de demonstração

@@ -215,3 +215,109 @@ h1 { font-size: clamp(32px, 4vw, 44px); letter-spacing: -.04em; line-height: 1; 
   .machines-grid { grid-template-columns: 1fr; }
   .machine-image { height: 180px; }
 }
+
+/* ===== Tema Figma Make (escopado: não afeta as páginas antigas) ===== */
+.tema-figma {
+  --background: #f6f7f9;
+  --foreground: #25272d;
+  --card: #ffffff;
+  --card-foreground: #25272d;
+  --primary: #da291c;
+  --primary-hover: #b91c1c;
+  --primary-foreground: #ffffff;
+  --primary-shadow: #da291c15;
+  --support: #a7352d;
+  --secondary: #f3f4f6;
+  --secondary-foreground: #42454e;
+  --muted: #f3f4f6;
+  --muted-foreground: #42454e;
+  --accent: #fff0ee;
+  --accent-foreground: #a7352d;
+  --destructive: #b91c1c;
+  --border: #e8eaee;
+  --input: #596270;
+  --ring: #a7352d;
+
+  font-family: "Source Sans 3", sans-serif;
+  color: var(--foreground);
+}
+
+.tema-figma h1,
+.tema-figma h2,
+.tema-figma h3 {
+  font-family: "DM Sans", sans-serif;
+}
+
+.tema-figma *,
+.tema-figma *::before,
+.tema-figma *::after {
+  border-color: var(--border);
+}
+
+@theme inline {
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-support: var(--support);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+}
+
+@font-face {
+  font-family: "Source Sans 3";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("/fonts/source-sans-3-latin.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "DM Sans";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("/fonts/dm-sans-latin.woff2") format("woff2");
+}
+
+.splash-logo {
+  fill: none;
+}
+
+.splash-logo path,
+.splash-logo polygon {
+  stroke: #fff;
+  stroke-width: 1px;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  fill: transparent;
+  animation:
+    splash-draw 1.6s ease-in-out forwards,
+    splash-fill 0.8s ease-in 1.5s forwards;
+}
+
+@keyframes splash-draw {
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes splash-fill {
+  to { fill: #fff; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .splash-logo path,
+  .splash-logo polygon {
+    animation: none;
+    stroke-dashoffset: 0;
+    fill: #fff;
+  }
+}
