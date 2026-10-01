@@ -253,6 +253,49 @@ h1 { font-size: clamp(32px, 4vw, 44px); letter-spacing: -.04em; line-height: 1; 
 .machine-details span { transition: transform .2s; }
 .machine-details:hover span { transform: translateX(3px); }
 .machines-empty { background: #fff; border: 1px solid var(--line); border-radius: 12px; color: var(--muted); margin: 0; padding: 32px; text-align: center; }
+.classification-page { box-sizing: border-box; max-width: none; min-height: 100vh; padding: clamp(20px, 2.2vw, 36px); }
+.classification-header { align-items: flex-end; display: flex; gap: 24px; justify-content: space-between; }
+.classification-header .eyebrow { margin-bottom: 9px; }
+.classification-header .page-subtitle { margin-top: 10px; }
+.classification-header .button { flex: 0 0 auto; }
+.classification-metrics { display: grid; gap: 16px; grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 26px; }
+.classification-metric { background: #fff; border: 1px solid var(--line); border-left: 4px solid var(--brand); border-radius: 12px; box-shadow: 0 4px 14px rgba(75, 43, 37, .035); display: flex; flex-direction: column; min-height: 124px; padding: 18px 22px; }
+.classification-metric > span { color: var(--muted); font-size: 13px; }
+.classification-metric strong { color: var(--foreground); font-size: clamp(28px, 3vw, 38px); letter-spacing: -.04em; line-height: 1.1; margin-top: 8px; }
+.classification-metric small { color: #a0918d; font-size: 11px; margin-top: 7px; }
+.classification-metric-done { border-left-color: #388b72; }
+.classification-filters { background: #fff; border: 1px solid var(--line); border-radius: 12px; display: grid; gap: 14px; grid-template-columns: repeat(5, minmax(0, 1fr)); margin-top: 18px; padding: 18px; }
+.classification-filters label { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+.classification-filters label > span { color: var(--muted); font-size: 11px; font-weight: 600; }
+.classification-filters input, .classification-filters select { background: #fff; border: 1px solid #d9c9c5; border-radius: 8px; box-sizing: border-box; color: var(--foreground); font: inherit; font-size: 12px; height: 42px; min-width: 0; padding: 0 11px; width: 100%; }
+.classification-table-card { background: #fff; border: 1px solid var(--line); border-radius: 12px; margin-top: 18px; min-width: 0; overflow: hidden; }
+.classification-table-heading { align-items: center; border-bottom: 1px solid var(--line); display: flex; gap: 20px; justify-content: space-between; padding: 0 22px; }
+.classification-table-heading h2 { color: var(--foreground); font-size: 15px; margin: 0; }
+.classification-tabs { align-self: stretch; display: flex; gap: 24px; }
+.classification-tab { background: transparent; border: 0; border-bottom: 2px solid transparent; color: var(--muted); cursor: pointer; display: inline-flex; align-items: center; gap: 7px; font: inherit; font-size: 12px; padding: 18px 4px 15px; }
+.classification-tab span { background: #f4eeeb; border-radius: 99px; color: var(--muted); font-size: 10px; padding: 3px 7px; }
+.classification-tab-active { border-bottom-color: var(--brand); color: var(--brand-dark); font-weight: 700; }
+.classification-tab-active span { background: var(--brand-light); color: var(--brand-dark); }
+.classification-table-scroll { overflow-x: auto; width: 100%; }
+.classification-table { border-collapse: collapse; table-layout: fixed; text-align: left; width: 100%; }
+.classification-table th { background: #fffaf8; color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .04em; padding: 13px 12px; }
+.classification-table td { border-top: 1px solid #f0e7e4; color: #4b3b37; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; padding: 15px 12px; vertical-align: middle; }
+.classification-table th:nth-child(1), .classification-table td:nth-child(1) { width: 11%; }
+.classification-table th:nth-child(2), .classification-table td:nth-child(2) { width: 8%; }
+.classification-table th:nth-child(3), .classification-table td:nth-child(3) { width: 9%; }
+.classification-table th:nth-child(4), .classification-table td:nth-child(4) { width: 17%; }
+.classification-table th:nth-child(5), .classification-table td:nth-child(5) { width: 9%; }
+.classification-table th:nth-child(6), .classification-table td:nth-child(6) { width: 25%; }
+.classification-table th:nth-child(7), .classification-table td:nth-child(7) { width: 21%; }
+.classification-table td:first-child strong, .classification-table td:first-child span, .classification-table td:nth-child(4) strong, .classification-table td:nth-child(4) span { display: block; }
+.classification-table td:first-child strong, .classification-table td:nth-child(4) strong { color: var(--foreground); font-weight: 600; }
+.classification-table td:first-child span, .classification-table td:nth-child(4) span { color: var(--muted); font-size: 10px; margin-top: 3px; }
+.classification-description { min-width: 240px; }
+.classification-select { background: #fff; border: 1px solid #d9c9c5; border-radius: 8px; box-sizing: border-box; color: var(--foreground); font: inherit; font-size: 11px; min-height: 40px; padding: 8px 10px; width: 100%; }
+.classification-message { align-items: center; color: var(--muted); display: flex; flex-direction: column; font-size: 13px; gap: 9px; margin: 0; padding: 38px 20px; text-align: center; }
+.classification-message strong { color: var(--foreground); font-size: 16px; }
+.classification-message-error { color: var(--brand-dark); }
+.classification-storage-warning { background: #fff8e8; border-bottom: 1px solid #f0dfb4; color: #765517; font-size: 12px; line-height: 1.5; margin: 0; padding: 12px 20px; }
 
 @media (max-width: 1050px) {
   .pareto-layout { grid-template-columns: minmax(0, 1fr); }
@@ -268,6 +311,8 @@ h1 { font-size: clamp(32px, 4vw, 44px); letter-spacing: -.04em; line-height: 1; 
   .machines-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ops-dashboard-grid { grid-template-columns: minmax(0, 1fr); }
   .ops-dashboard-aside { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .classification-filters { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .classification-table { min-width: 1050px; }
 }
 
 @media (max-width: 700px) {
@@ -282,6 +327,18 @@ h1 { font-size: clamp(32px, 4vw, 44px); letter-spacing: -.04em; line-height: 1; 
   .ops-dashboard-page { padding: 24px 16px 36px; }
   .ops-dashboard-header { align-items: flex-start; flex-direction: column; }
   .ops-dashboard-header .button { align-self: stretch; }
+  .classification-page { padding: 24px 16px 36px; }
+  .classification-header { align-items: flex-start; flex-direction: column; }
+  .classification-header .button { align-self: stretch; }
+  .classification-metrics { gap: 10px; margin-top: 20px; }
+  .classification-metric { min-height: 106px; padding: 14px 12px; }
+  .classification-metric > span { font-size: 11px; }
+  .classification-metric small { font-size: 9px; }
+  .classification-filters { gap: 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 14px; }
+  .classification-table-heading { align-items: flex-start; flex-direction: column; gap: 4px; padding: 0 14px 12px; }
+  .classification-table-heading h2 { padding-top: 6px; }
+  .classification-tabs { gap: 16px; }
+  .classification-tab { padding-top: 15px; }
   .ops-metrics { gap: 10px; grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 20px; }
   .ops-metric-card { min-height: 106px; padding: 13px 12px; }
   .ops-metric-card p { font-size: 10px; }
