@@ -1,7 +1,9 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { getLoggedInUser, subscribeToAuthChanges } from "@/lib/client-auth";
 
 type DashboardData = {
   tableName: string;
@@ -28,6 +30,38 @@ type ClassificationFilter = {
   line: string;
   shift: string;
 };
+
+type ClassificationEdit = {
+  date: string;
+  shift: string;
+  order: string;
+  line: string;
+  machine: string;
+  material: string;
+  downtime: string;
+  observations: string;
+  category: string;
+};
+
+type ClassificationRecord = {
+  category: string;
+  approved: boolean;
+  edits: Partial<ClassificationEdit>;
+};
+
+type ClassificationRecords = Record<string, ClassificationRecord>;
+
+const editableFields: (keyof ClassificationEdit)[] = [
+  "date",
+  "shift",
+  "order",
+  "line",
+  "machine",
+  "material",
+  "downtime",
+  "observations",
+  "category",
+];
 
 const failureCategories = [
   "CRASH DE GARRAFAS",
@@ -229,28 +263,95 @@ function buildRows(data: DashboardData): ClassificationRow[] {
   }));
 }
 
-function readStoredClassifications(value: string | null): Record<string, string> {
+function readStoredClassifications(value: string | null): ClassificationRecords {
   if (!value) return {};
   const parsed: unknown = JSON.parse(value);
   if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
     throw new Error("O formato das classificações salvas não é válido.");
   }
 
-  const entries = Object.entries(parsed);
-  if (entries.some(([, category]) => typeof category !== "string" || !failureCategories.includes(category))) {
-    throw new Error("Há classificações salvas com categorias inválidas.");
+  const records: ClassificationRecords = {};
+  for (const [id, storedRecord] of Object.entries(parsed)) {
+    if (typeof storedRecord === "string") {
+      if (storedRecord && !failureCategories.includes(storedRecord)) {
+        throw new Error("Há classificações salvas com categorias inválidas.");
+      }
+      records[id] = { category: storedRecord, approved: Boolean(storedRecord), edits: {} };
+      continue;
+    }
+
+    if (typeof storedRecord !== "object" || storedRecord === null || Array.isArray(storedRecord)) {
+      throw new Error("Há registros classificados salvos em um formato inválido.");
+    }
+
+    const record = storedRecord as Record<string, unknown>;
+    const category = typeof record.category === "string" ? record.category : "";
+    if (category && !failureCategories.includes(category)) {
+      throw new Error("Há classificações salvas com categorias inválidas.");
+    }
+    if (typeof record.approved !== "boolean") {
+      throw new Error("Há registros salvos com estado de aprovação inválido.");
+    }
+
+    const storedEdits = record.edits ?? {};
+    if (typeof storedEdits !== "object" || storedEdits === null || Array.isArray(storedEdits)) {
+      throw new Error("Há edições salvas em um formato inválido.");
+    }
+    const edits = storedEdits as Record<string, unknown>;
+    if (Object.entries(edits).some(([field, fieldValue]) =>
+      !editableFields.includes(field as keyof ClassificationEdit) || typeof fieldValue !== "string")) {
+      throw new Error("Há campos de edição salvos em um formato inválido.");
+    }
+    records[id] = {
+      category,
+      approved: record.approved,
+      edits: edits as Partial<ClassificationEdit>,
+    };
   }
-  return Object.fromEntries(entries) as Record<string, string>;
+  return records;
+}
+
+function getEffectiveRow(row: ClassificationRow, record: ClassificationRecord | undefined) {
+  const edits = record?.edits ?? {};
+  return {
+    ...row,
+    date: edits.date !== undefined ? getDate(edits.date) : row.date,
+    shift: edits.shift ?? row.shift,
+    order: edits.order ?? row.order,
+    line: edits.line ?? row.line,
+    machine: edits.machine ?? row.machine,
+    material: edits.material ?? row.material,
+    downtime: edits.downtime ?? row.downtime,
+    observations: edits.observations ?? row.observations,
+  };
+}
+
+function createEditDraft(row: ClassificationRow, record: ClassificationRecord | undefined): ClassificationEdit {
+  const effectiveRow = getEffectiveRow(row, record);
+  return {
+    date: effectiveRow.date ? getDateKey(effectiveRow.date) : "",
+    shift: effectiveRow.shift,
+    order: effectiveRow.order,
+    line: effectiveRow.line,
+    machine: effectiveRow.machine,
+    material: effectiveRow.material,
+    downtime: effectiveRow.downtime,
+    observations: effectiveRow.observations,
+    category: record?.category ?? "",
+  };
 }
 
 export default function FailureClassificationPage() {
+  const loggedUser = useSyncExternalStore(subscribeToAuthChanges, getLoggedInUser, () => null);
   const [data, setData] = useState<DashboardData | null>(null);
-  const [classifications, setClassifications] = useState<Record<string, string>>({});
+  const [classifications, setClassifications] = useState<ClassificationRecords>({});
+  const [editDrafts, setEditDrafts] = useState<Record<string, ClassificationEdit>>({});
   const [filter, setFilter] = useState<ClassificationFilter>(emptyFilter);
   const [activeTab, setActiveTab] = useState<"pending" | "classified">("pending");
   const [isLoading, setIsLoading] = useState(true);
   const [storageReady, setStorageReady] = useState(false);
   const [error, setError] = useState("");
+  const [actionError, setActionError] = useState("");
   const [storageWarning, setStorageWarning] = useState("");
 
   useEffect(() => {
@@ -298,32 +399,114 @@ export default function FailureClassificationPage() {
     () => Array.from(new Set(rows.map(({ shift }) => shift).filter(Boolean))).sort(),
     [rows],
   );
-  const filteredRows = useMemo(() => rows.filter((row) => {
+  const effectiveRows = useMemo(
+    () => rows.map((row) => getEffectiveRow(row, classifications[row.id])),
+    [classifications, rows],
+  );
+  const filteredRows = useMemo(() => effectiveRows.filter((row) => {
     if (filter.date && (!row.date || getDateKey(row.date) !== filter.date)) return false;
     if (filter.year !== "all" && String(row.date?.getFullYear() ?? "") !== filter.year) return false;
     if (filter.machine !== "all" && [row.machine, row.material].filter(Boolean).join(" / ") !== filter.machine) return false;
     if (filter.line !== "all" && row.line !== filter.line) return false;
     if (filter.shift !== "all" && row.shift !== filter.shift) return false;
     return true;
-  }), [filter, rows]);
-  const pendingRows = filteredRows.filter(({ id }) => !classifications[id]);
-  const classifiedRows = filteredRows.filter(({ id }) => Boolean(classifications[id]));
-  const visibleRows = activeTab === "pending" ? pendingRows : classifiedRows;
+  }), [effectiveRows, filter]);
+  const pendingRows = filteredRows.filter(({ id }) => !classifications[id]?.approved);
+  const classifiedRows = filteredRows.filter(({ id }) => Boolean(classifications[id]?.approved));
+  const visibleTab = loggedUser ? activeTab : "classified";
+  const visibleRows = visibleTab === "pending" ? pendingRows : classifiedRows;
+
+  function saveRecords(next: ClassificationRecords) {
+    if (!storageReady || !data) {
+      setActionError("Os dados ainda não estão prontos para serem salvos.");
+      return false;
+    }
+    try {
+      localStorage.setItem(`cocagreen:classificacoes:${data.tableName}`, JSON.stringify(next));
+      setClassifications(next);
+      setStorageWarning("");
+      setActionError("");
+      return true;
+    } catch (storageError) {
+      setStorageWarning(storageError instanceof Error
+        ? `Não foi possível salvar as alterações neste navegador. ${storageError.message}`
+        : "Não foi possível salvar as alterações neste navegador.");
+      return false;
+    }
+  }
 
   function updateClassification(id: string, category: string) {
     const next = { ...classifications };
-    if (category) next[id] = category;
-    else delete next[id];
-    setClassifications(next);
+    next[id] = { ...(next[id] ?? { category: "", approved: false, edits: {} }), category };
+    saveRecords(next);
+  }
 
-    if (!storageReady || !data) return;
-    try {
-      localStorage.setItem(`cocagreen:classificacoes:${data.tableName}`, JSON.stringify(next));
-      setStorageWarning("");
-    } catch (storageError) {
-      setStorageWarning(storageError instanceof Error
-        ? `Não foi possível salvar as classificações neste navegador. ${storageError.message}`
-        : "Não foi possível salvar as classificações neste navegador.");
+  function approveRow(id: string) {
+    const record = classifications[id];
+    if (!record?.category) {
+      setActionError("Selecione uma classificação antes de aprovar o registro.");
+      return;
+    }
+    const next = { ...classifications, [id]: { ...record, approved: true } };
+    if (saveRecords(next)) setActiveTab("classified");
+  }
+
+  function startEditing(row: ClassificationRow) {
+    setActionError("");
+    setEditDrafts((current) => ({
+      ...current,
+      [row.id]: createEditDraft(row, classifications[row.id]),
+    }));
+  }
+
+  function updateEditDraft(id: string, field: keyof ClassificationEdit, value: string) {
+    setEditDrafts((current) => ({
+      ...current,
+      [id]: { ...current[id], [field]: value },
+    }));
+  }
+
+  function cancelEditing(id: string) {
+    setEditDrafts((current) => {
+      const next = { ...current };
+      delete next[id];
+      return next;
+    });
+    setActionError("");
+  }
+
+  function saveEditing(id: string) {
+    const draft = editDrafts[id];
+    if (!draft) return;
+    if (draft.category && !failureCategories.includes(draft.category)) {
+      setActionError("Selecione uma classificação válida.");
+      return;
+    }
+
+    const current = classifications[id] ?? { category: "", approved: false, edits: {} };
+    const next = {
+      ...classifications,
+      [id]: {
+        ...current,
+        category: draft.category,
+        edits: {
+          date: draft.date,
+          shift: draft.shift,
+          order: draft.order,
+          line: draft.line,
+          machine: draft.machine,
+          material: draft.material,
+          downtime: draft.downtime,
+          observations: draft.observations,
+        },
+      },
+    };
+    if (saveRecords(next)) {
+      setEditDrafts((currentDrafts) => {
+        const updatedDrafts = { ...currentDrafts };
+        delete updatedDrafts[id];
+        return updatedDrafts;
+      });
     }
   }
 
@@ -335,15 +518,27 @@ export default function FailureClassificationPage() {
           <h1>Classificação de dados</h1>
           <p className="page-subtitle">Revise os registros de parada e classifique cada ocorrência.</p>
         </div>
-        <Link href="/login" className="button button-primary">Fazer login</Link>
+        {loggedUser ? (
+          <div className="classification-user" aria-label={`Usuário logado: ${loggedUser}`}>
+            <Image src="/imagem-login.jpg" alt="" width={42} height={42} />
+            <span><small>Logado</small><strong>{loggedUser}</strong></span>
+          </div>
+        ) : (
+          <Link href="/login" className="button button-primary">Fazer login</Link>
+        )}
       </header>
 
-      <section className="classification-metrics" aria-label="Resumo das classificações">
-        <article className="classification-metric classification-metric-pending">
-          <span>Dados pendentes</span>
-          <strong>{pendingRows.length.toLocaleString("pt-BR")}</strong>
-          <small>Aguardando classificação</small>
-        </article>
+      <section
+        className={`classification-metrics${loggedUser ? "" : " classification-metrics-guest"}`}
+        aria-label="Resumo das classificações"
+      >
+        {loggedUser && (
+          <article className="classification-metric classification-metric-pending">
+            <span>Dados pendentes</span>
+            <strong>{pendingRows.length.toLocaleString("pt-BR")}</strong>
+            <small>Aguardando classificação</small>
+          </article>
+        )}
         <article className="classification-metric classification-metric-done">
           <span>Dados classificados</span>
           <strong>{classifiedRows.length.toLocaleString("pt-BR")}</strong>
@@ -392,29 +587,32 @@ export default function FailureClassificationPage() {
 
       <section className="classification-table-card" aria-labelledby="classification-table-title">
         {storageWarning && <p className="classification-storage-warning" role="status">{storageWarning}</p>}
+        {actionError && <p className="classification-action-error" role="alert">{actionError}</p>}
         <div className="classification-table-heading">
           <div className="classification-tabs" role="tablist" aria-label="Status da classificação">
+            {loggedUser && (
+              <button
+                type="button"
+                role="tab"
+                aria-selected={visibleTab === "pending"}
+                className={visibleTab === "pending" ? "classification-tab classification-tab-active" : "classification-tab"}
+                onClick={() => setActiveTab("pending")}
+              >
+                Pendentes <span>{pendingRows.length}</span>
+              </button>
+            )}
             <button
               type="button"
               role="tab"
-              aria-selected={activeTab === "pending"}
-              className={activeTab === "pending" ? "classification-tab classification-tab-active" : "classification-tab"}
-              onClick={() => setActiveTab("pending")}
-            >
-              Pendentes <span>{pendingRows.length}</span>
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={activeTab === "classified"}
-              className={activeTab === "classified" ? "classification-tab classification-tab-active" : "classification-tab"}
+              aria-selected={visibleTab === "classified"}
+              className={visibleTab === "classified" ? "classification-tab classification-tab-active" : "classification-tab"}
               onClick={() => setActiveTab("classified")}
             >
               Classificados <span>{classifiedRows.length}</span>
             </button>
           </div>
           <h2 id="classification-table-title">
-            {activeTab === "pending" ? "Registros pendentes" : "Registros classificados"}
+            {visibleTab === "pending" ? "Registros pendentes" : "Registros classificados"}
           </h2>
         </div>
 
@@ -430,7 +628,7 @@ export default function FailureClassificationPage() {
           </div>
         ) : !visibleRows.length ? (
           <p className="classification-message">
-            {activeTab === "pending"
+            {visibleTab === "pending"
               ? "Não há dados pendentes para os filtros selecionados."
               : "Ainda não há dados classificados para os filtros selecionados."}
           </p>
@@ -446,38 +644,168 @@ export default function FailureClassificationPage() {
                   <th>Parada (min)</th>
                   <th>Observações</th>
                   <th>Classificação</th>
+                  <th>Ações</th>
                 </tr>
               </thead>
               <tbody>
-                {visibleRows.map((row) => (
-                  <tr key={row.id}>
-                    <td>
-                      <strong>{formatDate(row.date)}</strong>
-                      <span>{row.shift || "Turno não informado"}</span>
-                    </td>
-                    <td>{row.order || "—"}</td>
-                    <td>{row.line || "Linha não informada"}</td>
-                    <td>
-                      <strong>{row.machine || "Chave da parada não informada"}</strong>
-                      <span>{row.material || "Material não informado"}</span>
-                    </td>
-                    <td>{row.downtime ? `${row.downtime} min` : "—"}</td>
-                    <td className="classification-description">{row.observations || "Sem observações"}</td>
-                    <td>
-                      <select
-                        className="classification-select"
-                        aria-label={`Classificação do registro ${row.order || row.id}`}
-                        value={classifications[row.id] ?? ""}
-                        onChange={(event) => updateClassification(row.id, event.target.value)}
-                      >
-                        <option value="">Selecione uma classificação</option>
-                        {failureCategories.map((category) => (
-                          <option key={category} value={category}>{category}</option>
-                        ))}
-                      </select>
-                    </td>
-                  </tr>
-                ))}
+                {visibleRows.map((row) => {
+                  const draft = editDrafts[row.id];
+                  const isApproved = Boolean(classifications[row.id]?.approved);
+                  return (
+                    <tr key={row.id}>
+                      <td>
+                        {draft ? (
+                          <div className="classification-edit-stack">
+                            <input
+                              aria-label={`Data do registro ${row.order || row.id}`}
+                              className="classification-edit-input"
+                              type="date"
+                              value={draft.date}
+                              onChange={(event) => updateEditDraft(row.id, "date", event.target.value)}
+                            />
+                            <input
+                              aria-label={`Turno do registro ${row.order || row.id}`}
+                              className="classification-edit-input"
+                              value={draft.shift}
+                              onChange={(event) => updateEditDraft(row.id, "shift", event.target.value)}
+                            />
+                          </div>
+                        ) : (
+                          <>
+                            <strong>{formatDate(row.date)}</strong>
+                            <span>{row.shift || "Turno não informado"}</span>
+                          </>
+                        )}
+                      </td>
+                      <td>
+                        {draft ? (
+                          <input
+                            aria-label={`Ordem do registro ${row.order || row.id}`}
+                            className="classification-edit-input"
+                            value={draft.order}
+                            onChange={(event) => updateEditDraft(row.id, "order", event.target.value)}
+                          />
+                        ) : row.order || "—"}
+                      </td>
+                      <td>
+                        {draft ? (
+                          <input
+                            aria-label={`Linha do registro ${row.order || row.id}`}
+                            className="classification-edit-input"
+                            value={draft.line}
+                            onChange={(event) => updateEditDraft(row.id, "line", event.target.value)}
+                          />
+                        ) : row.line || "Linha não informada"}
+                      </td>
+                      <td>
+                        {draft ? (
+                          <div className="classification-edit-stack">
+                            <input
+                              aria-label={`Máquina do registro ${row.order || row.id}`}
+                              className="classification-edit-input"
+                              value={draft.machine}
+                              onChange={(event) => updateEditDraft(row.id, "machine", event.target.value)}
+                            />
+                            <input
+                              aria-label={`Material do registro ${row.order || row.id}`}
+                              className="classification-edit-input"
+                              value={draft.material}
+                              onChange={(event) => updateEditDraft(row.id, "material", event.target.value)}
+                            />
+                          </div>
+                        ) : (
+                          <>
+                            <strong>{row.machine || "Chave da parada não informada"}</strong>
+                            <span>{row.material || "Material não informado"}</span>
+                          </>
+                        )}
+                      </td>
+                      <td>
+                        {draft ? (
+                          <input
+                            aria-label={`Tempo de parada do registro ${row.order || row.id}`}
+                            className="classification-edit-input"
+                            inputMode="decimal"
+                            value={draft.downtime}
+                            onChange={(event) => updateEditDraft(row.id, "downtime", event.target.value)}
+                          />
+                        ) : row.downtime ? `${row.downtime} min` : "—"}
+                      </td>
+                      <td className="classification-description">
+                        {draft ? (
+                          <textarea
+                            aria-label={`Observações do registro ${row.order || row.id}`}
+                            className="classification-edit-input classification-edit-textarea"
+                            value={draft.observations}
+                            onChange={(event) => updateEditDraft(row.id, "observations", event.target.value)}
+                          />
+                        ) : row.observations || "Sem observações"}
+                      </td>
+                      <td>
+                        <select
+                          className="classification-select"
+                          aria-label={`Classificação do registro ${row.order || row.id}`}
+                          value={draft?.category ?? classifications[row.id]?.category ?? ""}
+                          disabled={!loggedUser && !draft}
+                          onChange={(event) => {
+                            if (draft) updateEditDraft(row.id, "category", event.target.value);
+                            else updateClassification(row.id, event.target.value);
+                          }}
+                        >
+                          <option value="">Selecione uma classificação</option>
+                          {failureCategories.map((category) => (
+                            <option key={category} value={category}>{category}</option>
+                          ))}
+                        </select>
+                      </td>
+                      <td>
+                        <div className="classification-actions">
+                          {isApproved ? (
+                            <span className="classification-approved-badge">Aprovado</span>
+                          ) : (
+                            <button
+                              type="button"
+                              className="button classification-approve-button"
+                              disabled={!loggedUser || Boolean(draft)}
+                              onClick={() => approveRow(row.id)}
+                              title={loggedUser ? "Aprovar esta classificação" : "Faça login para aprovar"}
+                            >
+                              Aprovar
+                            </button>
+                          )}
+                          {draft ? (
+                            <>
+                              <button
+                                type="button"
+                                className="button classification-edit-button"
+                                onClick={() => saveEditing(row.id)}
+                              >
+                                Salvar
+                              </button>
+                              <button
+                                type="button"
+                                className="classification-cancel-button"
+                                onClick={() => cancelEditing(row.id)}
+                              >
+                                Cancelar
+                              </button>
+                            </>
+                          ) : (
+                            <button
+                              type="button"
+                              className="button classification-edit-button"
+                              disabled={!loggedUser}
+                              onClick={() => startEditing(row)}
+                              title={loggedUser ? "Editar este registro" : "Faça login para editar"}
+                            >
+                              Editar
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

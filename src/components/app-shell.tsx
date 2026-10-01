@@ -4,6 +4,9 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
+import { useRouter } from "next/navigation";
+import { useSyncExternalStore } from "react";
+import { clearLoggedInUser, getLoggedInUser, subscribeToAuthChanges } from "@/lib/client-auth";
 
 type IconName = "dashboard" | "search" | "file" | "table" | "settings" | "classification";
 
@@ -86,12 +89,20 @@ function NavigationIcon({ name }: { name: IconName }) {
 
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const loggedUser = useSyncExternalStore(subscribeToAuthChanges, getLoggedInUser, () => null);
 
   return (
     <div className="app-shell">
       <aside className="sidebar" aria-label="Navegação principal">
         <Link href="/dashboard" className="sidebar-logo" aria-label="Ir para o dashboard">
-          <Image src="/Coca-Cola-circular.png" alt="Coca-Cola" width={82} height={82} priority />
+          <Image
+            src={loggedUser ? "/imagem-login.jpg" : "/Coca-Cola-circular.png"}
+            alt={loggedUser ? `Usuário ${loggedUser}` : "Coca-Cola"}
+            width={82}
+            height={82}
+            priority
+          />
         </Link>
 
         <nav className="sidebar-nav">
@@ -112,6 +123,25 @@ export function AppShell({ children }: { children: ReactNode }) {
           })}
         </nav>
 
+        {loggedUser && (
+          <div className="sidebar-user">
+            <Image src="/imagem-login.jpg" alt="" width={38} height={38} />
+            <div className="sidebar-user-copy">
+              <span>Logado</span>
+              <strong>{loggedUser}</strong>
+            </div>
+            <button
+              type="button"
+              className="sidebar-logout"
+              onClick={() => {
+                clearLoggedInUser();
+                router.push("/login");
+              }}
+            >
+              Sair
+            </button>
+          </div>
+        )}
       </aside>
       <main className="app-content">{children}</main>
     </div>

@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
+import { setLoggedInUser } from "@/lib/client-auth";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -20,7 +21,12 @@ export default function LoginPage() {
       return;
     }
 
-    router.push("/classificacaofalhas");
+    try {
+      setLoggedInUser(username);
+      router.push("/classificacaofalhas");
+    } catch {
+      setError("Não foi possível iniciar a sessão neste navegador.");
+    }
   }
 
   return (
@@ -28,8 +34,8 @@ export default function LoginPage() {
       <section className="login-card" aria-labelledby="login-title">
         <Image
           className="login-logo"
-          src="/Coca-Cola-circular.png"
-          alt="Coca-Cola"
+          src="/imagem-login.jpg"
+          alt="Ícone do usuário"
           width={96}
           height={96}
           priority
