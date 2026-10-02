@@ -14,9 +14,7 @@ import {
   YAxis,
 } from "recharts";
 import { AnalysisTabs } from "@/components/analysis-tabs";
-import { ChartFilters, type ChartFilterValues } from "@/components/chart-filters";
 import { EmptyDashboardPage } from "@/components/empty-dashboard";
-import { parseChartDate, parseChartNumber } from "@/lib/chart-normalize";
 
 type DashboardData = {
   columns: string[];
@@ -29,7 +27,8 @@ const columnByPattern = (columns: string[], pattern: RegExp) =>
   columns.find((column) => pattern.test(column.toLowerCase()));
 
 function parseDate(value: unknown) {
-  return parseChartDate(value);
+  const date = new Date(String(value ?? "").replace(" ", "T"));
+  return Number.isNaN(date.getTime()) ? null : date;
 }
 
 function getLogDomain(values: number[]) {
@@ -56,20 +55,21 @@ function buildJackKnifeData(data: DashboardData, period: PeriodFilter, selectedL
   const dates = data.rows.map((row) => parseDate(row[dateColumn])).filter((date): date is Date => date !== null);
   const latestDate = dates.reduce((latest, current) => current > latest ? current : latest, dates[0]);
   const days = period === "month" ? 30 : period === "week" ? 7 : 1;
-  const fromDate = latestDate ? new Date(latestDate.getFullYear(), latestDate.getMonth(), latestDate.getDate() - days + 1) : null;
-  const untilDate = latestDate ? new Date(latestDate.getFullYear(), latestDate.getMonth(), latestDate.getDate() + 1) : null;
+  const fromDate = latestDate ? new Date(latestDate.getTime() - (days - 1) * 86400000) : null;
   const periodRows = data.rows.filter((row) => {
     const date = parseDate(row[dateColumn]);
-    return date && (!fromDate || date >= fromDate) && (!untilDate || date < untilDate);
+    return date && (!fromDate || date >= fromDate);
   });
-  const rowsToAnalyze = periodRows;
+  const lineExistsInPeriod = selectedLine === "all"
+    || periodRows.some((row) => String(row[lineColumn] ?? "").trim() === selectedLine);
+  const rowsToAnalyze = periodRows.length && lineExistsInPeriod ? periodRows : data.rows;
 
   const grouped = new Map<string, { equipment: string; failure: string; frequency: number; totalMinutes: number; machines: Set<string> }>();
   rowsToAnalyze.forEach((row) => {
     const line = String(row[lineColumn] ?? "").trim();
     const equipment = String(row[equipmentColumn] ?? "").trim();
     const failure = String(row[failureColumn] ?? "").trim();
-    const minutes = parseChartNumber(row[minutesColumn]);
+    const minutes = Number(String(row[minutesColumn] ?? "").replace(",", "."));
     if (!line || !equipment || !failure || !Number.isFinite(minutes) || minutes <= 0) return;
     if (selectedLine !== "all" && line !== selectedLine) return;
 
@@ -147,7 +147,7 @@ export default function JackKnifePage() {
   };
   const criticalCount = chart.points.filter((point) => point.category === "Crítico-crônico").length;
 
-  if (!dashboardData) {
+  if (!chart.points.length) {
     return <EmptyDashboardPage message={loadError || "Insira uma planilha com colunas de linha, equipamento, descrição da falha, data e minutos parados para visualizar o Jack–Knife."} />;
   }
 
@@ -164,14 +164,23 @@ export default function JackKnifePage() {
 
       <section className="dashboard-chart-card pareto-card jackknife-card" aria-labelledby="jackknife-title">
         <AnalysisTabs active="jackknife" />
-        <ChartFilters
-          groups={[
-            { id: "period", label: "Período", options: [{ value: "day", label: "Dia" }, { value: "week", label: "Semana" }, { value: "month", label: "Mês" }], defaultValue: ["month"] },
-            { id: "line", label: "Linha", help: "Selecione uma linha para limitar a análise.", options: [{ value: "all", label: "Todas as linhas" }, ...lineOptions.map((line) => ({ value: line, label: line }))], defaultValue: ["all"] },
-          ]}
-          value={{ period: [period], line: [selectedLine] }}
-          onApply={(next: ChartFilterValues) => { setPeriod((next.period?.[0] || "month") as PeriodFilter); setSelectedLine(next.line?.[0] || "all"); }}
-        />
+        <div className="analysis-filters" aria-label="Filtros da análise">
+          <label>Período:
+            <select value={period} onChange={(event) => setPeriod(event.target.value as PeriodFilter)}>
+              <option value="month">Mês</option>
+              <option value="week">Semana</option>
+              <option value="day">Dia</option>
+            </select>
+          </label>
+          <label>Setor:
+            <select value={selectedLine} onChange={(event) => setSelectedLine(event.target.value)}>
+              <option value="all">Todas as linhas</option>
+              {lineOptions.map((line) => <option key={line} value={line}>{line}</option>)}
+            </select>
+          </label>
+          <span>Analisar por: <strong>{selectedLine === "all" ? "Equipamento/falha" : selectedLine}</strong></span>
+        </div>
+
         <div className="chart-heading jackknife-chart-heading">
           <div>
             <p className="empty-state-kicker">ANÁLISE DE FALHAS</p>
