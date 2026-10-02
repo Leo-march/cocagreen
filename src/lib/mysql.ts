@@ -138,3 +138,67 @@ export async function getLatestImportedTable() {
     await pool.end();
   }
 }
+
+export async function getUniqueMachines() {
+  const pool = mysql.createPool(getConfig());
+
+  try {
+    const [tables] = await pool.query<(RowDataPacket & { table_name: string })[]>(
+      `SELECT TABLE_NAME AS table_name
+       FROM information_schema.TABLES
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME LIKE 'import\\_%'
+       ORDER BY CREATE_TIME DESC
+       LIMIT 1`,
+    );
+    const table = tables[0]?.table_name;
+    if (!table) return [];
+
+    const [columns] = await pool.query<(RowDataPacket & { column_name: string })[]>(
+      `SELECT COLUMN_NAME AS column_name
+       FROM information_schema.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?
+       AND COLUMN_NAME NOT IN ('id', 'created_at')
+       ORDER BY ORDINAL_POSITION`,
+      [table],
+    );
+    const normalize = (value: string) =>
+      value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+    const machineColumn = columns.find(({ column_name }) =>
+      /chave.*parada|parada.*chave/.test(normalize(column_name)),
+    )?.column_name;
+    if (!machineColumn) {
+      throw new Error("A tabela importada não possui uma coluna de chave da parada.");
+    }
+    const lineColumn = columns.find(({ column_name }) =>
+      /linha|line/.test(normalize(column_name)),
+    )?.column_name;
+    const lineSelection = lineColumn
+      ? `${identifier(lineColumn)} AS production_line`
+      : "NULL AS production_line";
+    const [rows] = await pool.query<
+      (RowDataPacket & { machine_key: unknown; production_line: unknown })[]
+    >(
+      `SELECT ${identifier(machineColumn)} AS machine_key, ${lineSelection}
+       FROM ${identifier(table)}
+       WHERE ${identifier(machineColumn)} IS NOT NULL`,
+    );
+
+    const uniqueMachines = new Map<string, Set<string>>();
+    for (const row of rows) {
+      const name = String(row.machine_key ?? "").trim();
+      if (!name) continue;
+
+      const lines = uniqueMachines.get(name) ?? new Set<string>();
+      const line = String(row.production_line ?? "").trim();
+      if (line) lines.add(line);
+      uniqueMachines.set(name, lines);
+    }
+
+    return Array.from(uniqueMachines, ([name, lines]) => ({
+      name,
+      lines: Array.from(lines).sort((first, second) => first.localeCompare(second, "pt-BR")),
+    })).sort((first, second) => first.name.localeCompare(second.name, "pt-BR", { numeric: true }));
+  } finally {
+    await pool.end();
+  }
+}
