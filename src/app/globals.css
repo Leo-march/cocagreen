@@ -1433,6 +1433,188 @@ h1 {
   min-height: 100vh;
   padding: clamp(20px, 2.2vw, 36px);
 }
+.predictions-page > .page-header {
+  margin-bottom: 24px;
+}
+.prediction-model-panel,
+.prediction-upload-panel,
+.prediction-results-panel {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: 0 4px 18px rgba(75, 43, 37, 0.035);
+  margin-top: 18px;
+  min-width: 0;
+  padding: clamp(18px, 2vw, 26px);
+}
+.prediction-section-heading {
+  align-items: center;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  min-width: 0;
+}
+.prediction-section-heading h2 {
+  font-size: clamp(17px, 1.8vw, 21px);
+  letter-spacing: -0.025em;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.prediction-section-heading .ops-panel-kicker {
+  margin-bottom: 7px;
+}
+.prediction-status {
+  background: #fff5f2;
+  border-radius: 999px;
+  color: var(--brand-dark);
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 8px 12px;
+}
+.prediction-status-ready {
+  background: #edf6ed;
+  color: #48734b;
+}
+.prediction-source-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 20px;
+}
+.prediction-source-card {
+  background: #fffaf8;
+  border: 1px solid #f0e7e4;
+  border-radius: 10px;
+  min-width: 0;
+  padding: 16px;
+}
+.prediction-source-card h3 {
+  font-size: 14px;
+  line-height: 1.4;
+  margin: 0 0 12px;
+  overflow-wrap: anywhere;
+}
+.prediction-source-card p {
+  align-items: baseline;
+  border-top: 1px solid #f0e7e4;
+  color: var(--muted);
+  display: flex;
+  font-size: 12px;
+  gap: 12px;
+  justify-content: space-between;
+  margin: 0;
+  padding: 9px 0 0;
+}
+.prediction-source-card p + p {
+  margin-top: 8px;
+}
+.prediction-source-card strong {
+  color: var(--foreground);
+  flex: 0 0 auto;
+}
+.prediction-training-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 20px;
+  margin-top: 18px;
+}
+.prediction-training-summary span,
+.prediction-evaluation-metrics span {
+  color: var(--muted);
+  font-size: 12px;
+}
+.prediction-training-summary strong,
+.prediction-evaluation-metrics strong {
+  color: var(--brand-dark);
+}
+.prediction-evaluation {
+  border-top: 1px solid var(--line);
+  margin-top: 17px;
+  padding-top: 14px;
+}
+.prediction-evaluation summary {
+  color: var(--brand-dark);
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+}
+.prediction-evaluation-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 20px;
+  padding: 14px 0 2px;
+}
+.prediction-instructions {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+  margin: 15px 0 0;
+}
+.prediction-file-picker {
+  align-items: center;
+  border: 1px dashed #c88d88;
+  border-radius: 9px;
+  color: var(--brand-dark);
+  cursor: pointer;
+  display: flex;
+  font-size: 13px;
+  justify-content: center;
+  margin-top: 18px;
+  min-height: 50px;
+  overflow-wrap: anywhere;
+  padding: 8px 16px;
+  text-align: center;
+}
+.prediction-file-picker:hover {
+  background: var(--brand-light);
+}
+.prediction-file-picker input {
+  display: none;
+}
+.prediction-file-confirmation,
+.prediction-preview-note {
+  color: var(--muted);
+  font-size: 12px;
+  margin: 10px 0 0;
+}
+.prediction-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 16px;
+}
+.prediction-actions .button {
+  border: 0;
+  cursor: pointer;
+  margin: 0;
+}
+.prediction-actions .button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+  transform: none;
+}
+.prediction-error {
+  background: #fff5f2;
+  border: 1px solid #edc9c4;
+  border-radius: 8px;
+  color: var(--brand-dark);
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 16px 0 0;
+  overflow-wrap: anywhere;
+  padding: 12px 14px;
+}
+.prediction-results-scroll {
+  margin-top: 16px;
+  max-height: 440px;
+}
+.prediction-results-panel .preview-scroll table {
+  min-width: 100%;
+}
+.prediction-results-panel .preview-scroll td {
+  white-space: normal;
+}
 .machine-detail-header .button {
   flex: 0 0 auto;
   margin-top: 0;
@@ -1986,6 +2168,9 @@ h1 {
   .classification-filters {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
+  .prediction-source-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 @media (max-width: 700px) {
@@ -2069,6 +2254,25 @@ h1 {
     gap: 10px;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     padding: 14px;
+  }
+  .prediction-model-panel,
+  .prediction-upload-panel,
+  .prediction-results-panel {
+    padding: 16px;
+  }
+  .prediction-section-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .prediction-training-summary,
+  .prediction-evaluation-metrics {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 9px;
+  }
+  .prediction-actions {
+    align-items: stretch;
+    flex-direction: column;
   }
   .classification-table-heading {
     align-items: flex-start;
