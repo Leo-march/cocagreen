@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useSyncExternalStore } from "react";
-import { clearLoggedInUser, getLoggedInUser, subscribeToAuthChanges } from "@/lib/client-auth";
+import { clearLoggedInUser, getLoggedInUser, getUserRole, subscribeToAuthChanges } from "@/lib/client-auth";
 
 type IconName = "dashboard" | "search" | "file" | "table" | "settings" | "classification";
 
@@ -91,14 +91,19 @@ export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const loggedUser = useSyncExternalStore(subscribeToAuthChanges, getLoggedInUser, () => null);
+  const userRole = useSyncExternalStore(subscribeToAuthChanges, getUserRole, () => "visitor");
+  const isAdmin = userRole === "admin";
+  const visibleNavigation = navigationWithInsertLast.filter(
+    (item) => isAdmin || item.href !== "/inserirdados",
+  );
 
   return (
     <div className="app-shell">
       <aside className="sidebar" aria-label="Navegação principal">
         <Link href="/dashboard" className="sidebar-logo" aria-label="Ir para o dashboard">
           <Image
-            src={loggedUser ? "/imagem-login.jpg" : "/Coca-Cola-circular.png"}
-            alt={loggedUser ? `Usuário ${loggedUser}` : "Coca-Cola"}
+            src="/Coca-Cola-circular.png"
+            alt="Coca-Cola"
             width={82}
             height={82}
             priority
@@ -106,7 +111,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </Link>
 
         <nav className="sidebar-nav">
-          {navigationWithInsertLast.map((item) => {
+          {visibleNavigation.map((item) => {
             const isActive = pathname === item.href;
             return (
               <Link
@@ -125,9 +130,9 @@ export function AppShell({ children }: { children: ReactNode }) {
 
         {loggedUser && (
           <div className="sidebar-user">
-            <Image src="/imagem-login.jpg" alt="" width={38} height={38} />
+            <Image src="/Coca-Cola-circular.png" alt="" width={38} height={38} />
             <div className="sidebar-user-copy">
-              <span>Logado</span>
+              <span>{isAdmin ? "Admin" : "Visitante"}</span>
               <strong>{loggedUser}</strong>
             </div>
             <button
