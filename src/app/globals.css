@@ -77,7 +77,7 @@ body {
 .ops-metric-card span { color: #a0918d; font-size: 10px; margin-top: 7px; }
 .ops-metric-brown { border-left-color: #4b2b25; }
 .ops-metric-pink { border-left-color: #d45d9a; }
-.ops-metric-orange { border-left-color: #c94b34; }
+.ops-metric-orange { border-left-color: #cc4c35; }
 .ops-dashboard-grid { align-items: start; display: grid; gap: 18px; grid-template-columns: minmax(0, 1fr) minmax(255px, 310px); margin-top: 18px; }
 .ops-dashboard-main, .ops-dashboard-aside { display: grid; gap: 18px; min-width: 0; }
 .ops-panel { background: #fff; border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 4px 18px rgba(75, 43, 37, .035); min-width: 0; padding: clamp(16px, 1.7vw, 24px); }
