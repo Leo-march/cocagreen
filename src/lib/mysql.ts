@@ -15,7 +15,7 @@ function getConfig() {
 
   return {
     host: process.env.MYSQL_HOST,
-    port: Number(process.env.MYSQL_PORT || 3307),
+    port: Number(process.env.MYSQL_PORT || 3306),
     database: process.env.MYSQL_DATABASE,
     user: process.env.MYSQL_USER,
     password: process.env.MYSQL_PASSWORD || "root",
@@ -36,17 +36,9 @@ export async function saveImportedTable(
       .replace(/^(\d)/, "_$1");
     return base || `coluna_${index + 1}`;
   });
-  const usedColumnNames = new Set(["id", "created_at"]);
-  const uniqueColumns = normalizedColumns.map((column) => {
-    let name = column;
-    let suffix = 2;
-    while (usedColumnNames.has(name)) {
-      name = `${column}_${suffix}`;
-      suffix += 1;
-    }
-    usedColumnNames.add(name);
-    return name;
-  });
+  const uniqueColumns = normalizedColumns.map((column, index) =>
+    normalizedColumns.slice(0, index).includes(column) ? `${column}_${index + 1}` : column,
+  );
   const pool = mysql.createPool(getConfig());
 
   try {
@@ -103,7 +95,7 @@ export async function saveImportedTable(
   }
 }
 
-export async function getLatestImportedTable() {
+export async function getLatestImportedTable(options: { limit?: number; include?: string[] } = {}) {
   const pool = mysql.createPool(getConfig());
 
   try {
@@ -117,9 +109,6 @@ export async function getLatestImportedTable() {
     const table = tables[0]?.table_name;
     if (!table) return null;
 
-    const [rows] = await pool.query<(RowDataPacket & Record<string, unknown>)[]>(
-      `SELECT * FROM ${identifier(table)} ORDER BY id ASC LIMIT 1000`,
-    );
     const [columns] = await pool.query<(RowDataPacket & { column_name: string })[]>(
       `SELECT COLUMN_NAME AS column_name
        FROM information_schema.COLUMNS
@@ -128,10 +117,19 @@ export async function getLatestImportedTable() {
        ORDER BY ORDINAL_POSITION`,
       [table],
     );
+    const availableColumns = columns.map(({ column_name }) => column_name);
+    const requestedColumns = options.include?.length
+      ? availableColumns.filter((column) => options.include?.some((part) => column.includes(part)))
+      : availableColumns;
+    const selectedColumns = requestedColumns.length ? requestedColumns : availableColumns;
+    const [rows] = await pool.query<(RowDataPacket & Record<string, unknown>)[]>(
+      `SELECT ${selectedColumns.map(identifier).join(", ")} FROM ${identifier(table)} ORDER BY id ASC LIMIT ?`,
+      [Math.max(1, Math.min(options.limit ?? 1000, 100000))],
+    );
 
     return {
       tableName: table,
-      columns: columns.map(({ column_name }) => column_name),
+      columns: selectedColumns,
       rows,
     };
   } finally {

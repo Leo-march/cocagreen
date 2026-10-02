@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useSyncExternalStore } from "react";
@@ -16,7 +16,6 @@ const navigation: { href: string; label: string; icon: IconName }[] = [
   { href: "/classificacaofalhas", label: "Classificação", icon: "classification" },
   { href: "/inserirdados", label: "Inserir dados", icon: "file" },
   { href: "/tabelas", label: "Tabelas", icon: "table" },
-  { href: "/maquinas", label: "Máquinas", icon: "settings" },
 ];
 const navigationWithInsertLast = [
   ...navigation.filter((item) => item.href !== "/inserirdados"),
@@ -32,22 +31,10 @@ function NavigationIcon({ name }: { name: IconName }) {
     strokeWidth: 2.25,
   };
 
-  if (name === "dashboard") {
+  if (name === "chart") {
     return (
       <svg viewBox="0 0 32 32" aria-hidden="true">
-        <path {...common} d="M5 27h23" />
-        <rect {...common} x="7" y="18" width="4" height="9" rx="1" />
-        <rect {...common} x="14" y="12" width="4" height="15" rx="1" />
-        <rect {...common} x="21" y="5" width="4" height="22" rx="1" />
-      </svg>
-    );
-  }
-
-  if (name === "search") {
-    return (
-      <svg viewBox="0 0 32 32" aria-hidden="true">
-        <circle {...common} cx="13.5" cy="13.5" r="8" />
-        <path {...common} d="m19.5 19.5 7 7" />
+        <path {...common} d="M5 25h6V17H5v8Zm9 0h6V10h-6v15Zm9 0h6V4h-6v21Z" />
       </svg>
     );
   }
@@ -90,7 +77,14 @@ function NavigationIcon({ name }: { name: IconName }) {
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const loggedUser = useSyncExternalStore(subscribeToAuthChanges, getLoggedInUser, () => null);
+
+  if (pathname === "/login" || pathname === "/cadastro") return children;
+
+  const logout = async () => {
+    await fetch("/api/auth/logout", { method: "POST" });
+    router.replace("/login");
+    router.refresh();
+  };
 
   return (
     <div className="app-shell">
@@ -122,26 +116,12 @@ export function AppShell({ children }: { children: ReactNode }) {
             );
           })}
         </nav>
-
-        {loggedUser && (
-          <div className="sidebar-user">
-            <Image src="/imagem-login.jpg" alt="" width={38} height={38} />
-            <div className="sidebar-user-copy">
-              <span>Logado</span>
-              <strong>{loggedUser}</strong>
-            </div>
-            <button
-              type="button"
-              className="sidebar-logout"
-              onClick={() => {
-                clearLoggedInUser();
-                router.push("/login");
-              }}
-            >
-              Sair
-            </button>
-          </div>
-        )}
+        <button className="sidebar-link sidebar-logout" type="button" onClick={logout} title="Sair">
+          <svg viewBox="0 0 32 32" aria-hidden="true" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.25">
+            <path d="M19 5h7v22h-7M14 10l6 6-6 6M20 16H5" />
+          </svg>
+          <span>Sair</span>
+        </button>
       </aside>
       <main className="app-content">{children}</main>
     </div>
