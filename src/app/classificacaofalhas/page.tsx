@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
-import { getLoggedInUser, subscribeToAuthChanges } from "@/lib/client-auth";
+import { getLoggedInUser, getUserRole, subscribeToAuthChanges } from "@/lib/client-auth";
 
 type DashboardData = {
   tableName: string;
@@ -343,6 +343,7 @@ function createEditDraft(row: ClassificationRow, record: ClassificationRecord | 
 
 export default function FailureClassificationPage() {
   const loggedUser = useSyncExternalStore(subscribeToAuthChanges, getLoggedInUser, () => null);
+  const isAdmin = useSyncExternalStore(subscribeToAuthChanges, getUserRole, () => "visitor") === "admin";
   const [data, setData] = useState<DashboardData | null>(null);
   const [classifications, setClassifications] = useState<ClassificationRecords>({});
   const [editDrafts, setEditDrafts] = useState<Record<string, ClassificationEdit>>({});
@@ -436,12 +437,20 @@ export default function FailureClassificationPage() {
   }
 
   function updateClassification(id: string, category: string) {
+    if (!isAdmin) {
+      setActionError("Acesso restrito: somente a Talita pode alterar classificações.");
+      return;
+    }
     const next = { ...classifications };
     next[id] = { ...(next[id] ?? { category: "", approved: false, edits: {} }), category };
     saveRecords(next);
   }
 
   function approveRow(id: string) {
+    if (!isAdmin) {
+      setActionError("Acesso restrito: somente a Talita pode aprovar classificações.");
+      return;
+    }
     const record = classifications[id];
     if (!record?.category) {
       setActionError("Selecione uma classificação antes de aprovar o registro.");
@@ -452,6 +461,10 @@ export default function FailureClassificationPage() {
   }
 
   function startEditing(row: ClassificationRow) {
+    if (!isAdmin) {
+      setActionError("Acesso restrito: o visitante só pode visualizar e não pode editar registros.");
+      return;
+    }
     setActionError("");
     setEditDrafts((current) => ({
       ...current,
@@ -476,6 +489,10 @@ export default function FailureClassificationPage() {
   }
 
   function saveEditing(id: string) {
+    if (!isAdmin) {
+      setActionError("Acesso restrito: somente a Talita pode salvar alterações.");
+      return;
+    }
     const draft = editDrafts[id];
     if (!draft) return;
     if (draft.category && !failureCategories.includes(draft.category)) {
@@ -512,6 +529,11 @@ export default function FailureClassificationPage() {
 
   return (
     <div className="dashboard-page dashboard-with-brand-bg classification-page">
+      {!isAdmin && loggedUser && (
+        <p className="classification-access-warning" role="status">
+          Modo visitante: acesso somente para leitura. Nenhuma alteração será salva.
+        </p>
+      )}
       <header className="classification-header">
         <div>
           <p className="eyebrow">DADOS DA OPERAÇÃO</p>
@@ -746,7 +768,7 @@ export default function FailureClassificationPage() {
                           className="classification-select"
                           aria-label={`Classificação do registro ${row.order || row.id}`}
                           value={draft?.category ?? classifications[row.id]?.category ?? ""}
-                          disabled={!loggedUser && !draft}
+                          disabled={!isAdmin || (!loggedUser && !draft)}
                           onChange={(event) => {
                             if (draft) updateEditDraft(row.id, "category", event.target.value);
                             else updateClassification(row.id, event.target.value);
@@ -766,9 +788,9 @@ export default function FailureClassificationPage() {
                             <button
                               type="button"
                               className="button classification-approve-button"
-                              disabled={!loggedUser || Boolean(draft)}
+                              disabled={!isAdmin || Boolean(draft)}
                               onClick={() => approveRow(row.id)}
-                              title={loggedUser ? "Aprovar esta classificação" : "Faça login para aprovar"}
+                              title={isAdmin ? "Aprovar esta classificação" : "Acesso restrito para visitantes"}
                             >
                               Aprovar
                             </button>
@@ -794,9 +816,9 @@ export default function FailureClassificationPage() {
                             <button
                               type="button"
                               className="button classification-edit-button"
-                              disabled={!loggedUser}
+                              disabled={!isAdmin}
                               onClick={() => startEditing(row)}
-                              title={loggedUser ? "Editar este registro" : "Faça login para editar"}
+                              title={isAdmin ? "Editar este registro" : "Acesso restrito para visitantes"}
                             >
                               Editar
                             </button>
