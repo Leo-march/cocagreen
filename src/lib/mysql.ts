@@ -202,3 +202,82 @@ export async function getUniqueMachines() {
     await pool.end();
   }
 }
+
+export async function getMachineStopDetails(machineName: string) {
+  const pool = mysql.createPool(getConfig());
+
+  try {
+    const [tables] = await pool.query<(RowDataPacket & { table_name: string })[]>(
+      `SELECT TABLE_NAME AS table_name
+       FROM information_schema.TABLES
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME LIKE 'import\\_%'
+       ORDER BY CREATE_TIME DESC
+       LIMIT 1`,
+    );
+    const table = tables[0]?.table_name;
+    if (!table) return [];
+
+    const [columns] = await pool.query<(RowDataPacket & { column_name: string })[]>(
+      `SELECT COLUMN_NAME AS column_name
+       FROM information_schema.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?
+       AND COLUMN_NAME NOT IN ('id', 'created_at')
+       ORDER BY ORDINAL_POSITION`,
+      [table],
+    );
+    const normalize = (value: string) =>
+      value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+    const machineColumn = columns.find(({ column_name }) =>
+      /chave.*parada|parada.*chave/.test(normalize(column_name)),
+    )?.column_name;
+    if (!machineColumn) {
+      throw new Error("A tabela importada não possui uma coluna de chave da parada.");
+    }
+
+    const causeColumn = columns.find(({ column_name }) =>
+      column_name !== machineColumn
+      && /observa|subchave|chave_\d+|tipo.*parada|causa|motivo|defeito|falha|descricao/.test(normalize(column_name)),
+    )?.column_name;
+    const minutesColumn = columns.find(({ column_name }) =>
+      /minut.*parada|total.*minuto|tempo|minute|duration|duracao/.test(normalize(column_name)),
+    )?.column_name;
+    const lineColumn = columns.find(({ column_name }) =>
+      /linha|line/.test(normalize(column_name)),
+    )?.column_name;
+    const dateColumn = columns.find(({ column_name }) =>
+      !/manutencao|maintenance/.test(normalize(column_name))
+      && /data|date|inicio|abertura|ocorrencia/.test(normalize(column_name)),
+    )?.column_name;
+    const selectColumn = (column: string | undefined, alias: string) =>
+      column ? `${identifier(column)} AS ${identifier(alias)}` : `NULL AS ${identifier(alias)}`;
+
+    const [rows] = await pool.query<
+      (RowDataPacket & {
+        cause: unknown;
+        minutes: unknown;
+        line: unknown;
+        occurred_at: unknown;
+      })[]
+    >(
+      `SELECT
+         ${selectColumn(causeColumn, "cause")},
+         ${selectColumn(minutesColumn, "minutes")},
+         ${selectColumn(lineColumn, "line")},
+         ${selectColumn(dateColumn, "occurred_at")}
+       FROM ${identifier(table)}
+       WHERE ${identifier(machineColumn)} = ?`,
+      [machineName],
+    );
+
+    return rows.map((row) => ({
+      cause: row.cause === null || row.cause === undefined ? "" : String(row.cause).trim(),
+      minutes: row.minutes === null || row.minutes === undefined ? "" : String(row.minutes).trim(),
+      line: row.line === null || row.line === undefined ? "" : String(row.line).trim(),
+      occurredAt: row.occurred_at === null || row.occurred_at === undefined
+        ? ""
+        : String(row.occurred_at).trim(),
+    }));
+  } finally {
+    await pool.end();
+  }
+}
