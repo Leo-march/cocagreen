@@ -1,11 +1,11 @@
 import Link from "next/link";
 
-type AnalysisTab = "pareto" | "jackknife" | "graficos";
+type AnalysisTab = "pareto" | "jackknife" | "other";
 
 const tabs: { id: AnalysisTab; href: string; label: string }[] = [
   { id: "pareto", href: "/dashboard", label: "Pareto" },
   { id: "jackknife", href: "/jackknife", label: "Jack–Knife" },
-  { id: "graficos", href: "/graficos", label: "Outros Gráficos" },
+  { id: "other", href: "/outrosgraficos", label: "Outros gráficos" },
 ];
 
 export function AnalysisTabs({ active }: { active: AnalysisTab }) {
