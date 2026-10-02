@@ -1162,53 +1162,6 @@ h1 {
   outline: 0;
   width: 100%;
 }
-.machine-add-button {
-  background: var(--brand-dark);
-  border: 0;
-  border-radius: 9px;
-  box-shadow: 0 5px 12px rgba(143, 24, 32, 0.15);
-  color: #fff;
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 700;
-  padding: 14px 18px;
-  transition:
-    background 0.2s,
-    transform 0.2s;
-  white-space: nowrap;
-}
-.machine-add-button:hover {
-  background: var(--brand);
-  transform: translateY(-1px);
-}
-.machine-filters {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 9px;
-  margin: 22px 0 30px;
-}
-.machine-filters button {
-  background: #fff;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  color: var(--muted);
-  cursor: pointer;
-  font-size: 12px;
-  padding: 10px 14px;
-  transition:
-    background 0.2s,
-    border-color 0.2s,
-    color 0.2s;
-}
-.machine-filters button:hover,
-.machine-filter-active {
-  border-color: #c88d88 !important;
-  color: var(--brand-dark) !important;
-}
-.machine-filter-active {
-  background: #fff9f7 !important;
-  font-weight: 700;
-}
 .machines-grid {
   display: grid;
   gap: 22px;
@@ -1267,43 +1220,6 @@ h1 {
 .machine-card-body strong {
   color: var(--foreground);
   font-weight: 600;
-}
-.machine-status-row {
-  align-items: center !important;
-}
-.machine-status {
-  border-radius: 999px;
-  font-size: 11px;
-  font-weight: 700;
-  padding: 4px 9px;
-}
-.machine-status-online {
-  background: #edf6ed;
-  color: #48734b;
-}
-.machine-status-maintenance {
-  background: #fbe8e5;
-  color: var(--brand-dark);
-}
-.machine-details {
-  align-items: center;
-  background: transparent;
-  border: 0;
-  color: var(--brand-dark);
-  cursor: pointer;
-  display: inline-flex;
-  font-size: 12px;
-  font-weight: 700;
-  gap: 7px;
-  margin: auto 0 0;
-  padding: 16px 0 0;
-  text-align: left;
-}
-.machine-details span {
-  transition: transform 0.2s;
-}
-.machine-details:hover span {
-  transform: translateX(3px);
 }
 .machines-empty {
   background: #fff;
@@ -2060,9 +1976,6 @@ h1 {
   .machine-search {
     box-sizing: border-box;
     flex: initial;
-    width: 100%;
-  }
-  .machine-add-button {
     width: 100%;
   }
   .machines-grid {
