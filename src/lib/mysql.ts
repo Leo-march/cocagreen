@@ -139,6 +139,57 @@ export async function getLatestImportedTable() {
   }
 }
 
+export async function getImportedTablePage(page: number, pageSize: number) {
+  const pool = mysql.createPool(getConfig());
+
+  try {
+    const [tables] = await pool.query<(RowDataPacket & { table_name: string })[]>(
+      `SELECT TABLE_NAME AS table_name
+       FROM information_schema.TABLES
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME LIKE 'import\\_%'
+       ORDER BY CREATE_TIME DESC
+       LIMIT 1`,
+    );
+    const table = tables[0]?.table_name;
+    if (!table) return null;
+
+    const [columns] = await pool.query<(RowDataPacket & { column_name: string })[]>(
+      `SELECT COLUMN_NAME AS column_name
+       FROM information_schema.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?
+       AND COLUMN_NAME NOT IN ('id', 'created_at')
+       ORDER BY ORDINAL_POSITION`,
+      [table],
+    );
+
+    const allColumns = columns.map(({ column_name }) => column_name);
+    const minutesIndex = allColumns.findIndex((column) => {
+      const normalized = column.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+      return normalized.includes("minutos") && normalized.includes("paradas");
+    });
+    const rowDataColumns = minutesIndex < 0 ? allColumns : allColumns.slice(minutesIndex);
+    const hasData = rowDataColumns.length > 0
+      ? rowDataColumns.map((column) => `NULLIF(TRIM(CAST(${identifier(column)} AS CHAR)), '') IS NOT NULL`).join(" OR ")
+      : "1 = 0";
+    const [[countResult]] = await pool.query<(RowDataPacket & { total: number })[]>(
+      `SELECT COUNT(*) AS total FROM ${identifier(table)} WHERE ${hasData}`,
+    );
+    const [rows] = await pool.query<(RowDataPacket & Record<string, unknown>)[]>(
+      `SELECT * FROM ${identifier(table)} WHERE ${hasData} ORDER BY id ASC LIMIT ? OFFSET ?`,
+      [pageSize, (page - 1) * pageSize],
+    );
+
+    return {
+      tableName: table,
+      columns: allColumns,
+      rows,
+      totalRows: Number(countResult?.total ?? 0),
+    };
+  } finally {
+    await pool.end();
+  }
+}
+
 export async function getUniqueMachines() {
   const pool = mysql.createPool(getConfig());
 

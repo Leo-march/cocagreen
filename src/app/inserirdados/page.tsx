@@ -15,6 +15,18 @@ type ImportResult = {
   tableNames?: string[];
 };
 
+function getVisibleColumns(columns: string[]) {
+  const minutesIndex = columns.findIndex((column) => {
+    const normalized = column
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "_");
+    return normalized.includes("minutos") && normalized.includes("paradas");
+  });
+  return minutesIndex < 0 ? columns : columns.slice(0, minutesIndex + 1);
+}
+
 export default function InsertDataPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [result, setResult] = useState<ImportResult | null>(null);
@@ -22,6 +34,8 @@ export default function InsertDataPage() {
   const [isImporting, setIsImporting] = useState(false);
   const loggedUser = getLoggedInUser();
   const isAdmin = getUserRole() === "admin";
+  const previewColumns = result ? getVisibleColumns(result.columns) : [];
+  const previewRows = result?.rows.slice(0, 8) ?? [];
 
   if (!isAdmin) {
     return (
@@ -110,17 +124,24 @@ export default function InsertDataPage() {
         <section className="import-preview" aria-label="Prévia dos dados importados">
           <div className="preview-header">
             <h2>Prévia da tabela</h2>
-            <span>{result.totalRows} linha(s)</span>
+            <span>
+              {Math.min(previewRows.length, result.totalRows) < result.totalRows
+                ? `Prévia: ${Math.min(previewRows.length, result.totalRows)} de ${result.totalRows} linhas`
+                : `${result.totalRows} linha(s)`}
+            </span>
           </div>
           <div className="preview-scroll">
-            <table>
+            <table
+              className="import-preview-table"
+              style={{ width: `${Math.max(previewColumns.length, 1) * 200}px` }}
+            >
               <thead>
-                <tr>{result.columns.map((column) => <th key={column}>{column}</th>)}</tr>
+                <tr>{previewColumns.map((column) => <th key={column}>{column}</th>)}</tr>
               </thead>
               <tbody>
-                {result.rows.map((row, rowIndex) => (
+                {previewRows.map((row, rowIndex) => (
                   <tr key={rowIndex}>
-                    {result.columns.map((column) => <td key={`${rowIndex}-${column}`}>{String(row[column] ?? "")}</td>)}
+                    {previewColumns.map((column) => <td key={`${rowIndex}-${column}`}>{String(row[column] ?? "")}</td>)}
                   </tr>
                 ))}
               </tbody>

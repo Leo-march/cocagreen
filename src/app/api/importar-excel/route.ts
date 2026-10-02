@@ -96,28 +96,41 @@ export async function POST(request: Request) {
 
     const sheets = result.sheets || [];
     const columns = Array.from(new Set(sheets.flatMap((sheet) => sheet.columns)));
+    const minutesColumnIndex = columns.findIndex((column) => {
+      const normalized = column.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+      return normalized.includes("minutos") && normalized.includes("paradas");
+    });
+    const columnsUsedToKeepRows = minutesColumnIndex < 0 ? columns : columns.slice(minutesColumnIndex);
     if (columns.length === 0) {
       return NextResponse.json({ error: "Nenhuma aba contém colunas para importar." }, { status: 422 });
     }
     const rows = sheets.flatMap((sheet) =>
       sheet.rows.map((row) => Object.fromEntries(columns.map((column) => [column, row[column] ?? ""]))),
-    );
+    ).filter((row) => columnsUsedToKeepRows.some((column) => String(row[column] ?? "").trim() !== ""));
     const persisted = await saveImportedTable(
       sheets[0]?.sheet || "planilha",
       columns,
       rows,
     );
-    const previewRows = rows.slice(0, 100).map((row) =>
+    const minutesIndex = persisted.columns.findIndex((column) => column === "minutos_de_paradas");
+    const previewColumns = persisted.columns.filter((column, index) =>
+      minutesIndex < 0 || index <= minutesIndex || rows.some((row) => String(row[columns[index] || ""] ?? "").trim() !== ""),
+    );
+    const previewRows = rows.slice(0, 12).map((row) =>
       Object.fromEntries(
-        persisted.columns.map((column, index) => [
-          column,
-          row[columns[index] || ""] ?? "",
-        ]),
+        previewColumns.map((column) => {
+          const index = persisted.columns.indexOf(column);
+          return [
+            column,
+            row[columns[index] || ""] ?? "",
+          ];
+        }),
       ),
     );
 
     return NextResponse.json({
       ...persisted,
+      columns: previewColumns,
       sheet: sheets[0]?.sheet || "planilha",
       sheets: sheets.map(({ sheet }) => sheet),
       totalRows: rows.length,
