@@ -2,6 +2,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 
 const SESSION_COOKIE = "cocagreen_admin_session";
 const SESSION_DURATION_SECONDS = 8 * 60 * 60;
+export const ADMIN_USERNAME = "Talita";
 
 type SessionPayload = {
   username: string;
@@ -26,9 +27,9 @@ function sign(payload: string) {
   return createHmac("sha256", getAuthSecret()).update(payload).digest("base64url");
 }
 
-export function createAdminSession(username: string) {
+export function createAdminSession() {
   const payload: SessionPayload = {
-    username,
+    username: ADMIN_USERNAME,
     expiresAt: Math.floor(Date.now() / 1000) + SESSION_DURATION_SECONDS,
   };
   const encodedPayload = Buffer.from(JSON.stringify(payload)).toString("base64url");
@@ -61,14 +62,13 @@ export function getAdminSession(request: Request): string | null {
       Buffer.from(encodedPayload, "base64url").toString("utf8"),
     ) as Partial<SessionPayload>;
     if (
-      typeof payload.username !== "string"
-      || !payload.username
+      payload.username !== ADMIN_USERNAME
       || typeof payload.expiresAt !== "number"
       || payload.expiresAt <= Math.floor(Date.now() / 1000)
     ) {
       return null;
     }
-    return payload.username;
+    return ADMIN_USERNAME;
   } catch {
     return null;
   }
@@ -85,10 +85,9 @@ export function clearSessionCookie() {
 }
 
 export function matchesAdminCredentials(username: string, password: string) {
-  const expectedUsername = requiredEnvironmentValue("COCAGREEN_ADMIN_USERNAME");
   const expectedPassword = requiredEnvironmentValue("COCAGREEN_ADMIN_PASSWORD");
   const hash = (value: string) => createHmac("sha256", "cocagreen-login-check").update(value).digest();
-  return timingSafeEqual(hash(username), hash(expectedUsername))
+  return timingSafeEqual(hash(username), hash(ADMIN_USERNAME))
     && timingSafeEqual(hash(password), hash(expectedPassword));
 }
 

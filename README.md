@@ -18,7 +18,7 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 ## Environment variables
 
-Copy `.env.example` to `.env.local` and set the MySQL and classifier values for your environment. `PYTHON_PATH` is optional; when omitted, the app tries the project `.venv` and then `python` from `PATH`.
+Copy `.env.example` to `.env.local` and set the MySQL and classifier values for your environment. The only administrator account is `Talita`; set its password with `COCAGREEN_ADMIN_PASSWORD` in `.env.local`. The configured development password is intentionally not stored in version control; replace it with a long, unique password before exposing the app beyond a trusted local environment. `PYTHON_PATH` is optional; when omitted, the app tries the project `.venv` and then `python` from `PATH`.
 
 ## Classificador de falhas
 
@@ -40,7 +40,7 @@ Para comparar modelos sem reutilizar métricas legadas, o pipeline clona a confi
 
 A página **Realizar nova predição** na Sidebar aceita planilhas `.xlsx` com `Observações`, sem exigir rótulos, preserva abas e dados originais e acrescenta classificação, confiança estimada e indicação de revisão manual. Confiança abaixo de 60% é sinalizada; é uma probabilidade estimada, não calibrada, e não substitui validação humana.
 
-Correções manuais podem ser enviadas em uma planilha `.xlsx` com `Observações` e `Classificação revisada`. Elas ficam pendentes no MySQL e só entram em um novo candidato após aprovação administrativa explícita; uma correção aprovada substitui o rótulo histórico da mesma observação normalizada, e o sistema bloqueia duas correções aprovadas conflitantes para o mesmo texto. Configurar `COCAGREEN_ADMIN_USERNAME`, `COCAGREEN_ADMIN_PASSWORD` e um `COCAGREEN_AUTH_SECRET` aleatório com pelo menos 32 caracteres no `.env.local`; o segredo de sessão é emitido como cookie `HttpOnly`. As aprovações e rejeições registram usuário e horário.
+Correções manuais podem ser enviadas em uma planilha `.xlsx` com `Observações` e `Classificação revisada`. Elas ficam pendentes no MySQL e só entram em um novo candidato após aprovação administrativa explícita; uma correção aprovada substitui o rótulo histórico da mesma observação normalizada, e o sistema bloqueia duas correções aprovadas conflitantes para o mesmo texto. Configure `COCAGREEN_ADMIN_PASSWORD` e um `COCAGREEN_AUTH_SECRET` aleatório com pelo menos 32 caracteres no `.env.local`; o segredo de sessão é emitido como cookie `HttpOnly`. As aprovações e rejeições registram usuário e horário.
 
 Os artefatos são salvos em `scripts/resultado_modelo_falhas`: métricas e comparação em `metricas.json`, histórico em `historico_modelos.json`, métricas por origem em `metricas_por_origem.csv`, métricas por categoria em `metricas_por_classe.csv`, matriz de confusão em `matriz_confusao.csv`, erros em `erros_teste.csv`, pares de observações semelhantes em `observacoes_semelhantes.csv`, sugestões de classificações semelhantes em `classificacoes_semelhantes.csv`, confusões em `principais_confusoes.csv`, previsões do teste em `previsoes_teste.csv` e os modelos ativo e candidato em arquivos `.joblib`. O sistema cria a tabela `failure_prediction_feedback` no MySQL na primeira utilização da fila. Os caminhos podem ser alterados com `--data-dir` e `--output-dir`.
 

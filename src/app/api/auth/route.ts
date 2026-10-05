@@ -4,6 +4,7 @@ import {
   createAdminSession,
   getAdminSession,
   getSessionCookie,
+  ADMIN_USERNAME,
   matchesAdminCredentials,
 } from "@/lib/server-auth";
 
@@ -36,8 +37,8 @@ export async function POST(request: Request) {
     if (!matchesAdminCredentials(credentials.username.trim(), credentials.password)) {
       return NextResponse.json({ error: "Credenciais inválidas." }, { status: 401 });
     }
-    const response = NextResponse.json({ username: credentials.username.trim() });
-    response.headers.set("Set-Cookie", getSessionCookie(createAdminSession(credentials.username.trim())));
+    const response = NextResponse.json({ username: ADMIN_USERNAME });
+    response.headers.set("Set-Cookie", getSessionCookie(createAdminSession()));
     return response;
   } catch (error) {
     const message = error instanceof Error ? error.message : "Não foi possível iniciar a sessão.";
