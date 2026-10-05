@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
@@ -11,17 +10,13 @@ import { clearLoggedInUser, getLoggedInUser, getUserRole, subscribeToAuthChanges
 type IconName = "dashboard" | "search" | "file" | "table" | "settings" | "classification" | "prediction";
 
 const navigation: { href: string; label: string; icon: IconName }[] = [
-  { href: "/dashboard", label: "Dashboard", icon: "dashboard" },
-  { href: "/pareto", label: "Análise", icon: "search" },
-  { href: "/classificacaofalhas", label: "Classificação", icon: "classification" },
-  { href: "/predicoes", label: "Realizar nova predição", icon: "prediction" },
-  { href: "/inserirdados", label: "Inserir dados", icon: "file" },
-  { href: "/tabelas", label: "Tabelas", icon: "table" },
+  { href: "/dashboard", label: "Painel principal", icon: "dashboard" },
   { href: "/maquinas", label: "Máquinas", icon: "settings" },
-];
-const navigationWithInsertLast = [
-  ...navigation.filter((item) => item.href !== "/inserirdados"),
-  ...navigation.filter((item) => item.href === "/inserirdados"),
+  { href: "/classificacaofalhas", label: "Classificação de falhas", icon: "classification" },
+  { href: "/pareto", label: "Análises", icon: "search" },
+  { href: "/predicoes", label: "Realizar nova predição", icon: "prediction" },
+  { href: "/tabelas", label: "Tabelas", icon: "table" },
+  { href: "/inserirdados", label: "Importação de dados", icon: "file" },
 ];
 
 function NavigationIcon({ name }: { name: IconName }) {
@@ -103,9 +98,15 @@ export function AppShell({ children }: { children: ReactNode }) {
   const userRole = useSyncExternalStore(subscribeToAuthChanges, getUserRole, () => "visitor");
   const [logoutError, setLogoutError] = useState("");
   const isAdmin = userRole === "admin";
-  const visibleNavigation = navigationWithInsertLast.filter(
-    (item) => isAdmin || item.href !== "/inserirdados",
+  const operationNavigation = navigation.slice(0, 4);
+  const adminNavigation = navigation.slice(4).filter(
+    (item) => item.href !== "/inserirdados" || isAdmin,
   );
+  const currentPage = navigation.find((item) => (
+    item.href === pathname
+    || (item.href === "/pareto" && ["/jackknife", "/outrosgraficos"].includes(pathname))
+    || (item.href === "/maquinas" && pathname.startsWith("/maquinas/"))
+  ));
 
   async function logOut() {
     setLogoutError("");
@@ -122,19 +123,29 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="app-shell">
       <aside className="sidebar" aria-label="Navegação principal">
-        <Link href="/dashboard" className="sidebar-logo" aria-label="Ir para o dashboard">
-          <Image
-            src="/Coca-Cola-circular.png"
-            alt="Coca-Cola"
-            width={82}
-            height={82}
-            priority
-          />
+        <Link href="/dashboard" className="sidebar-brand" aria-label="Ir para o painel principal">
+          <span className="sidebar-brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none">
+              <path d="M4 20V8.5L9 11V7l5 3V4h6v16H4Z" />
+              <path d="M8 15v1m4-1v1m4-1v1m4-1v1" />
+            </svg>
+          </span>
+          <span className="sidebar-brand-copy"><strong>Manutenção</strong><small>Unidade Marília</small></span>
         </Link>
 
+        <div className="sidebar-unit">
+          <span className="sidebar-unit-icon" aria-hidden="true"><NavigationIcon name="table" /></span>
+          <span><strong>Unidade Marília</strong><small>São Paulo, Brasil</small></span>
+          <svg className="sidebar-unit-check" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="m12 3 7 3v5c0 4.5-3 8-7 10-4-2-7-5.5-7-10V6l7-3Z" />
+            <path d="m9 11 2 2 4-4" />
+          </svg>
+        </div>
+
         <nav className="sidebar-nav">
-          {visibleNavigation.map((item) => {
-            const isActive = pathname === item.href;
+          <span className="sidebar-section-label">Operação</span>
+          {operationNavigation.map((item) => {
+            const isActive = item === currentPage;
             return (
               <Link
                 href={item.href}
@@ -148,27 +159,57 @@ export function AppShell({ children }: { children: ReactNode }) {
               </Link>
             );
           })}
+          {adminNavigation.length > 0 && (
+            <>
+              <span className="sidebar-section-label sidebar-section-label-admin">Administração</span>
+              {adminNavigation.map((item) => (
+                <Link
+                  href={item.href}
+                  key={item.href}
+                  className={`sidebar-link${pathname === item.href ? " sidebar-link-active" : ""}`}
+                  aria-current={pathname === item.href ? "page" : undefined}
+                  title={item.label}
+                >
+                  <NavigationIcon name={item.icon} />
+                  <span>{item.label}</span>
+                </Link>
+              ))}
+            </>
+          )}
         </nav>
 
-        {loggedUser && (
+        <div className="sidebar-footer">
+          <div className="sidebar-help">
+            <span aria-hidden="true">?</span><span>Central de ajuda</span><small aria-hidden="true">↗</small>
+          </div>
           <div className="sidebar-user">
-            <Image src="/Coca-Cola-circular.png" alt="" width={38} height={38} />
+            <span className="sidebar-user-avatar">{(loggedUser?.[0] ?? "V").toLocaleUpperCase("pt-BR")}</span>
             <div className="sidebar-user-copy">
-              <span>{isAdmin ? "Admin" : "Visitante"}</span>
-              <strong>{loggedUser}</strong>
+              <strong>{loggedUser ?? "Visitante"}</strong>
+              <span>{loggedUser ? (isAdmin ? "Administrador" : "Acesso autenticado") : "Acesso público"}</span>
             </div>
-            <button
-              type="button"
-              className="sidebar-logout"
-              onClick={() => void logOut()}
-            >
-              Sair
-            </button>
+            {loggedUser && (
+              <button type="button" className="sidebar-logout" onClick={() => void logOut()}>Sair</button>
+            )}
             {logoutError && <span role="alert">{logoutError}</span>}
           </div>
-        )}
+        </div>
       </aside>
-      <main className="app-content">{children}</main>
+      <div className="app-content">
+        <header className="app-topbar">
+          <div className="app-breadcrumb">
+            <span>Manutenção</span>
+            <span aria-hidden="true">›</span>
+            <strong>{currentPage?.label ?? "Análises"}</strong>
+          </div>
+          <div className="app-topbar-profile">
+            <span>Perfil</span>
+            <strong>{isAdmin ? "Administrador" : "Visitante"}</strong>
+            <span className="app-topbar-avatar">{(loggedUser?.[0] ?? "V").toLocaleUpperCase("pt-BR")}</span>
+          </div>
+        </header>
+        <main className="app-content-main">{children}</main>
+      </div>
     </div>
   );
 }

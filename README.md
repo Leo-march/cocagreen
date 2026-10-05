@@ -22,7 +22,7 @@ Copy `.env.example` to `.env.local` and set the MySQL and classifier values for 
 
 ## Classificador de falhas
 
-O script `scripts/train_failure_classifier.py` treina um classificador com as planilhas `apontamentos Jundiai.xlsx` e `Classificação dos Apontamentos - Marília.xlsx`, localizadas em `scripts/planilhas treinamento`. Ele usa `Observações` como texto de entrada e `Classificação` como rótulo. As categorias das duas planilhas são combinadas, sem inferir equivalências semânticas; diferenças apenas de maiúsculas/minúsculas e espaços são normalizadas.
+O script `scripts/train_failure_classifier.py` treina um classificador com as planilhas `apontamentos Jundiai.xlsx` e `Classificação dos Apontamentos - Marília.xlsx`, localizadas em `scripts/.planilhas treinamento` ou `scripts/planilhas treinamento`. Ele usa `Observações` como texto de entrada e `Classificação` como rótulo. As categorias das duas planilhas são combinadas, sem inferir equivalências semânticas; diferenças apenas de maiúsculas/minúsculas e espaços são normalizadas.
 
 No Windows, instale as dependências e execute:
 

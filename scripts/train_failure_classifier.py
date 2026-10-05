@@ -39,7 +39,8 @@ from sklearn.linear_model import LogisticRegression
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
-DEFAULT_DATA_DIR = SCRIPT_DIR / "planilhas treinamento"
+DEFAULT_DATA_DIR = SCRIPT_DIR / ".planilhas treinamento"
+LEGACY_DATA_DIR = SCRIPT_DIR / "planilhas treinamento"
 DEFAULT_OUTPUT_DIR = SCRIPT_DIR / "resultado_modelo_falhas"
 INPUT_FILES = (
     "apontamentos Jundiai.xlsx",
@@ -133,6 +134,14 @@ def load_training_data(
     data_dir: Path,
     feedback_path: Path | None = None,
 ) -> tuple[pd.DataFrame, dict[str, Any]]:
+    if not data_dir.is_dir() and data_dir == DEFAULT_DATA_DIR and LEGACY_DATA_DIR.is_dir():
+        data_dir = LEGACY_DATA_DIR
+    if not data_dir.is_dir():
+        raise FileNotFoundError(
+            "Pasta das planilhas de treinamento não encontrada. "
+            f"Verifique '{DEFAULT_DATA_DIR}' ou '{LEGACY_DATA_DIR}'."
+        )
+
     sheets = [load_workbook(data_dir / filename) for filename in INPUT_FILES]
     feedback = load_approved_feedback(feedback_path)
     data = pd.concat([*sheets, feedback], ignore_index=True)

@@ -80,38 +80,32 @@ export default function MachinesPage() {
 
   return (
     <div className="dashboard-page dashboard-with-brand-bg machines-page">
-      <header className="machines-header">
-        <div>
-          <p className="eyebrow">GESTÃO DA OPERAÇÃO</p>
-          <h1>Máquinas</h1>
-          <p className="machines-count">
-            {isLoading
-              ? "Carregando máquinas..."
-              : !hasActiveFilter && filteredMachines.length > visibleMachines.length
-                ? `Mostrando ${visibleMachines.length} de ${filteredMachines.length} máquinas`
-                : `${filteredMachines.length} máquinas encontradas`}
-          </p>
-        </div>
-        <div className="machines-actions">
-          <label className="machine-search">
-            <span aria-hidden="true">⌕</span>
-            <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar máquina ou linha" aria-label="Buscar máquina ou linha" />
-          </label>
-          <button
-            type="button"
-            className={`machine-filter-trigger${selectedLines.length ? " machine-filter-trigger-active" : ""}`}
-            aria-expanded={isFilterOpen}
-            aria-controls="machine-filter-panel"
-            onClick={openFilters}
-          >
-            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
-              <path d="M4 6h16M7 12h10m-7 6h4" />
-            </svg>
-            <span>Filtros{selectedLines.length ? ` (${selectedLines.length})` : ""}</span>
-            <span className={`machine-filter-chevron${isFilterOpen ? " machine-filter-chevron-open" : ""}`} aria-hidden="true" />
-          </button>
-        </div>
-      </header>
+      <section className="machines-toolbar" aria-label="Buscar e filtrar máquinas">
+        <label className="machine-search">
+          <span aria-hidden="true">⌕</span>
+          <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar nome do equipamento..." aria-label="Buscar nome do equipamento" />
+        </label>
+        <button
+          type="button"
+          className={`machine-filter-trigger${selectedLines.length ? " machine-filter-trigger-active" : ""}`}
+          aria-expanded={isFilterOpen}
+          aria-controls="machine-filter-panel"
+          onClick={openFilters}
+        >
+          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+            <path d="M4 6h16M7 12h10m-7 6h4" />
+          </svg>
+          <span>{selectedLines.length ? `${selectedLines.length} linhas` : "Todas as linhas"}</span>
+          <span className={`machine-filter-chevron${isFilterOpen ? " machine-filter-chevron-open" : ""}`} aria-hidden="true" />
+        </button>
+        <span className="machines-count">
+          {isLoading
+            ? "Carregando..."
+            : !hasActiveFilter && filteredMachines.length > visibleMachines.length
+              ? `${visibleMachines.length} de ${filteredMachines.length} equipamentos`
+              : `${filteredMachines.length} equipamentos`}
+        </span>
+      </section>
 
       {isFilterOpen && (
         <div className="machine-filter-backdrop" onClick={() => setIsFilterOpen(false)}>
@@ -180,8 +174,11 @@ export default function MachinesPage() {
               <Image src="/maquina-exemplo.jpg" alt={`Imagem da ${machine.name}`} fill sizes="(max-width: 700px) 100vw, 33vw" />
             </div>
             <div className="machine-card-body">
+              <span className="machine-card-meta">
+                {machine.lines.length ? machine.lines.join(" · ") : "Linha não informada"}
+              </span>
               <h2>{machine.name}</h2>
-              <p><strong>Linha:</strong> {machine.lines.length ? machine.lines.join(", ") : "Não informada"}</p>
+              <p>Equipamento cadastrado na operação</p>
               <Link className="machine-details" href={`/maquinas/${encodeURIComponent(machine.name)}`}>
                 Ver detalhes <span aria-hidden="true">→</span>
               </Link>

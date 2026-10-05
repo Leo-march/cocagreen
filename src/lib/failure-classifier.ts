@@ -108,16 +108,38 @@ export type TrainingMetrics = {
 };
 
 const scriptsDirectory = join(process.cwd(), "scripts");
-const trainingDataDirectory = join(scriptsDirectory, "planilhas treinamento");
+const trainingDataDirectories = [
+  join(scriptsDirectory, ".planilhas treinamento"),
+  join(scriptsDirectory, "planilhas treinamento"),
+];
 const outputDirectory = join(scriptsDirectory, "resultado_modelo_falhas");
 const modelPath = join(outputDirectory, "modelo_classificacao_apontamentos.joblib");
 const candidateModelPath = join(outputDirectory, "modelo_classificacao_candidato.joblib");
 const metricsPath = join(outputDirectory, "metricas.json");
 const modelHistoryPath = join(outputDirectory, "historico_modelos.json");
-const jundiaiTrainingFile = join(trainingDataDirectory, "apontamentos Jundiai.xlsx");
-const mariliaTrainingFile = join(trainingDataDirectory, "Classificação dos Apontamentos - Marília.xlsx");
+const trainingFileNames = [
+  "apontamentos Jundiai.xlsx",
+  "Classificação dos Apontamentos - Marília.xlsx",
+];
 
 let trainingPromise: Promise<TrainingMetrics> | null = null;
+
+async function findTrainingDataDirectory() {
+  for (const directory of trainingDataDirectories) {
+    try {
+      await Promise.all(
+        trainingFileNames.map((fileName) => access(join(/*turbopackIgnore: true*/ directory, fileName))),
+      );
+      return directory;
+    } catch (error) {
+      if (!(error instanceof Error && "code" in error && error.code === "ENOENT")) throw error;
+    }
+  }
+
+  throw new Error(
+    `Planilhas históricas não encontradas. Verifique as pastas ${trainingDataDirectories.join(" e ")}.`,
+  );
+}
 
 async function pythonCommand() {
   if (process.env.PYTHON_PATH) return process.env.PYTHON_PATH;
@@ -173,6 +195,7 @@ function fingerprintFeedback(rows: Awaited<ReturnType<typeof getApprovedPredicti
 }
 
 async function trainModel(
+  dataDirectory: string,
   approvedFeedback: Awaited<ReturnType<typeof getApprovedPredictionFeedback>>,
   feedbackFingerprint: string,
 ): Promise<TrainingMetrics> {
@@ -182,6 +205,7 @@ async function trainModel(
     await mkdir(temporaryDirectory, { recursive: true });
     await writeFile(feedbackPath, JSON.stringify(approvedFeedback), "utf8");
     await runPythonScript("train_failure_classifier.py", [
+      "--data-dir", dataDirectory,
       "--output-dir", outputDirectory,
       "--feedback-file", feedbackPath,
       "--feedback-fingerprint", feedbackFingerprint,
@@ -197,19 +221,20 @@ export async function ensureFailureModel(forceTraining = false) {
 
   trainingPromise = (async () => {
     let isOutdated = forceTraining;
+    const trainingDataDirectory = await findTrainingDataDirectory();
     const approvedFeedback = await getApprovedPredictionFeedback();
     const feedbackFingerprint = fingerprintFeedback(approvedFeedback);
+    const trainingFiles = trainingFileNames.map((fileName) => join(/*turbopackIgnore: true*/ trainingDataDirectory, fileName));
     try {
-      const [modelStats, candidateStats, metrics, jundiaiContents, mariliaContents] = await Promise.all([
+      const [modelStats, candidateStats, metrics, ...sourceContents] = await Promise.all([
         stat(modelPath),
         stat(candidateModelPath),
         readMetrics(),
-        readFile(jundiaiTrainingFile),
-        readFile(mariliaTrainingFile),
+        ...trainingFiles.map((filePath) => readFile(/*turbopackIgnore: true*/ filePath)),
       ]);
       const sourceFingerprints = {
-        "apontamentos Jundiai.xlsx": createHash("sha256").update(jundiaiContents).digest("hex"),
-        "Classificação dos Apontamentos - Marília.xlsx": createHash("sha256").update(mariliaContents).digest("hex"),
+        [trainingFileNames[0]]: createHash("sha256").update(sourceContents[0]).digest("hex"),
+        [trainingFileNames[1]]: createHash("sha256").update(sourceContents[1]).digest("hex"),
         correcoes_aprovadas: feedbackFingerprint,
       };
       if (
@@ -230,7 +255,7 @@ export async function ensureFailureModel(forceTraining = false) {
       isOutdated = true;
     }
 
-    if (isOutdated) return trainModel(approvedFeedback, feedbackFingerprint);
+    if (isOutdated) return trainModel(trainingDataDirectory, approvedFeedback, feedbackFingerprint);
     return readMetrics();
   })();
 

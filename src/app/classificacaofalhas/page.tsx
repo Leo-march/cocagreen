@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { getLoggedInUser, getUserRole, subscribeToAuthChanges } from "@/lib/client-auth";
@@ -645,47 +644,20 @@ export default function FailureClassificationPage() {
 
   return (
     <div className="dashboard-page dashboard-with-brand-bg classification-page">
-      {!isAdmin && loggedUser && (
-        <p className="classification-access-warning" role="status">
-          Modo visitante: acesso somente para leitura. Nenhuma alteração será salva.
-        </p>
+      {!isAdmin && (
+        <aside className="classification-login-notice" role="status">
+          <span className="classification-lock-icon" aria-hidden="true">⌑</span>
+          <span>
+            <strong>{loggedUser ? "Acesso de visitante" : "Faça login para acessar as informações restritas"}</strong>
+            <small>
+              {loggedUser
+                ? "Sugestões da IA e classificações só ficam disponíveis para analistas autenticados."
+                : "Sem login, classificações, sugestões da IA e ordens dos chamados ficam ocultas. Aprovação e edição exigem perfil Analista autenticado."}
+            </small>
+          </span>
+          {!loggedUser && <Link href="/login">Fazer login</Link>}
+        </aside>
       )}
-      <header className="classification-header">
-        <div>
-          <p className="eyebrow">DADOS DA OPERAÇÃO</p>
-          <h1>Classificação de dados</h1>
-          <p className="page-subtitle">
-            Revise os registros de parada e classifique cada ocorrência. A confiança exibida é uma estimativa do modelo,
-            não uma garantia de acerto.
-          </p>
-        </div>
-        {loggedUser ? (
-          <div className="classification-user" aria-label={`Usuário logado: ${loggedUser}`}>
-            <Image src="/imagem-login.jpg" alt="" width={42} height={42} />
-            <span><small>Logado</small><strong>{loggedUser}</strong></span>
-          </div>
-        ) : (
-          <Link href="/login" className="button button-primary">Fazer login</Link>
-        )}
-      </header>
-
-      <section
-        className={`classification-metrics${loggedUser ? "" : " classification-metrics-guest"}`}
-        aria-label="Resumo das classificações"
-      >
-        {loggedUser && (
-          <article className="classification-metric classification-metric-pending">
-            <span>Dados pendentes</span>
-            <strong>{pendingRows.length.toLocaleString("pt-BR")}</strong>
-            <small>Aguardando classificação</small>
-          </article>
-        )}
-        <article className="classification-metric classification-metric-done">
-          <span>Dados classificados</span>
-          <strong>{classifiedRows.length.toLocaleString("pt-BR")}</strong>
-          <small>Classificados com uma categoria</small>
-        </article>
-      </section>
 
       <section className="classification-filters" aria-label="Filtros dos registros">
         <label>
@@ -730,6 +702,7 @@ export default function FailureClassificationPage() {
         {storageWarning && <p className="classification-storage-warning" role="status">{storageWarning}</p>}
         {actionError && <p className="classification-action-error" role="alert">{actionError}</p>}
         <div className="classification-table-heading">
+          <h2 id="classification-table-title">Chamados de manutenção</h2>
           <div className="classification-tabs" role="tablist" aria-label="Status da classificação">
             {loggedUser && (
               <button
@@ -752,9 +725,6 @@ export default function FailureClassificationPage() {
               Classificados <span>{classifiedRows.length}</span>
             </button>
           </div>
-          <h2 id="classification-table-title">
-            {visibleTab === "pending" ? "Registros pendentes" : "Registros classificados"}
-          </h2>
         </div>
 
         {isLoading ? (
@@ -779,14 +749,12 @@ export default function FailureClassificationPage() {
               <thead>
                 <tr>
                   <th>Data / turno</th>
-                  <th>Ordem</th>
-                  <th>Linha</th>
                   <th>Máquina / linha</th>
+                  <th>Ordem do chamado</th>
                   <th>Parada (min)</th>
-                  <th>Observações</th>
-                  <th>Classificação pela IA</th>
+                  <th>Descrição</th>
+                  <th>Sugestão da IA</th>
                   <th>Classificação</th>
-                  <th>Ações</th>
                 </tr>
               </thead>
               <tbody>
@@ -822,26 +790,6 @@ export default function FailureClassificationPage() {
                           </>
                         )}
                       </td>
-                      <td data-label="Ordem">
-                        {draft ? (
-                          <input
-                            aria-label={`Ordem do registro ${row.order || row.id}`}
-                            className="classification-edit-input"
-                            value={draft.order}
-                            onChange={(event) => updateEditDraft(row.id, "order", event.target.value)}
-                          />
-                        ) : row.order || "—"}
-                      </td>
-                      <td data-label="Linha">
-                        {draft ? (
-                          <input
-                            aria-label={`Linha do registro ${row.order || row.id}`}
-                            className="classification-edit-input"
-                            value={draft.line}
-                            onChange={(event) => updateEditDraft(row.id, "line", event.target.value)}
-                          />
-                        ) : row.line || "Linha não informada"}
-                      </td>
                       <td data-label="Máquina / linha">
                         {draft ? (
                           <div className="classification-edit-stack">
@@ -851,19 +799,19 @@ export default function FailureClassificationPage() {
                               value={draft.machine}
                               onChange={(event) => updateEditDraft(row.id, "machine", event.target.value)}
                             />
-                            <input
-                              aria-label={`Material do registro ${row.order || row.id}`}
-                              className="classification-edit-input"
-                              value={draft.material}
-                              onChange={(event) => updateEditDraft(row.id, "material", event.target.value)}
-                            />
+                            <input aria-label={`Linha do registro ${row.order || row.id}`} className="classification-edit-input" value={draft.line} onChange={(event) => updateEditDraft(row.id, "line", event.target.value)} />
                           </div>
                         ) : (
                           <>
                             <strong>{row.machine || "Chave da parada não informada"}</strong>
-                            <span>{row.material || "Material não informado"}</span>
+                            <span>{row.line || "Linha não informada"}</span>
                           </>
                         )}
+                      </td>
+                      <td data-label="Ordem do chamado">
+                        {isAdmin ? (draft ? (
+                          <input aria-label={`Ordem do registro ${row.order || row.id}`} className="classification-edit-input" value={draft.order} onChange={(event) => updateEditDraft(row.id, "order", event.target.value)} />
+                        ) : row.order || "—") : <span className="classification-locked">♙ Login necessário</span>}
                       </td>
                       <td data-label="Parada (min)">
                         {draft ? (
@@ -876,7 +824,7 @@ export default function FailureClassificationPage() {
                           />
                         ) : row.downtime ? `${row.downtime} min` : "—"}
                       </td>
-                      <td className="classification-description" data-label="Observações">
+                      <td className="classification-description" data-label="Descrição">
                         {draft ? (
                           <textarea
                             aria-label={`Observações do registro ${row.order || row.id}`}
@@ -886,8 +834,8 @@ export default function FailureClassificationPage() {
                           />
                         ) : row.observations || "Sem observações"}
                       </td>
-                      <td data-label="Classificação pela IA">
-                        {row.aiPrediction ? (
+                      <td data-label="Sugestão da IA">
+                        {isAdmin ? row.aiPrediction ? (
                           <>
                             <strong>{row.aiPrediction}</strong>
                             <span>
@@ -896,9 +844,11 @@ export default function FailureClassificationPage() {
                                 : `${row.aiConfidence > 0.9 ? "Classificada automaticamente" : "Pendente"} · confiança estimada ${(row.aiConfidence * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`}
                             </span>
                           </>
-                        ) : "Sem predição"}
+                        ) : "Sem predição" : <span className="classification-locked">♙ Login necessário</span>}
                       </td>
                       <td data-label="Classificação">
+                        {isAdmin ? (
+                          <>
                         <select
                           className="classification-select"
                           aria-label={`Classificação do registro ${row.order || row.id}`}
@@ -914,8 +864,6 @@ export default function FailureClassificationPage() {
                             <option key={category} value={category}>{category}</option>
                           ))}
                         </select>
-                      </td>
-                      <td data-label="Ações">
                         <div className="classification-actions">
                           {isApproved ? (
                             <span className="classification-approved-badge">Aprovado</span>
@@ -959,6 +907,8 @@ export default function FailureClassificationPage() {
                             </button>
                           )}
                         </div>
+                          </>
+                        ) : <span className="classification-locked">♙ Login necessário</span>}
                       </td>
                     </tr>
                   );
