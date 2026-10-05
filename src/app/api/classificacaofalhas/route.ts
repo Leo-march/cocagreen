@@ -5,8 +5,10 @@ import { join } from "node:path";
 import { NextResponse } from "next/server";
 import {
   getLatestImportedTable,
+  getFailureClassificationCategories,
   getUnpredictedLatestImportedRows,
   saveImportedClassification,
+  saveFailureClassificationCategory,
   saveLatestImportedPredictions,
   type ImportedPrediction,
 } from "@/lib/mysql";
@@ -85,11 +87,50 @@ async function ensureDatabasePredictions() {
 export async function GET(request: Request) {
   try {
     if (getAdminSession(request)) await ensureDatabasePredictions();
-    return NextResponse.json({ data: await getLatestImportedTable() });
+    const [data, customCategories] = await Promise.all([
+      getLatestImportedTable(),
+      getFailureClassificationCategories(),
+    ]);
+    return NextResponse.json({ data, customCategories });
   } catch (error) {
     const message = error instanceof Error
       ? error.message
       : "Não foi possível classificar as observações da tabela importada.";
+    return NextResponse.json({ error: message }, { status: 503 });
+  }
+}
+
+export async function POST(request: Request) {
+  let username: string | null;
+  try {
+    username = getAdminSession(request);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Não foi possível validar a sessão administrativa.";
+    return NextResponse.json({ error: message }, { status: 503 });
+  }
+  if (!username) {
+    return NextResponse.json({ error: "Ação restrita ao acesso administrativo." }, { status: 403 });
+  }
+
+  let body: { category?: unknown };
+  try {
+    body = await request.json() as { category?: unknown };
+  } catch {
+    return NextResponse.json({ error: "Informe o nome da nova falha." }, { status: 400 });
+  }
+  if (
+    typeof body.category !== "string"
+    || !body.category.trim()
+    || body.category.trim().length > 512
+  ) {
+    return NextResponse.json({ error: "O nome da falha deve ter entre 1 e 512 caracteres." }, { status: 400 });
+  }
+
+  try {
+    const category = await saveFailureClassificationCategory(body.category.trim());
+    return NextResponse.json({ category });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Não foi possível salvar a nova falha.";
     return NextResponse.json({ error: message }, { status: 503 });
   }
 }

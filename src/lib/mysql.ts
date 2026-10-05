@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 type ImportedRow = Record<string, unknown>;
 const FALLBACK_IMPORT_TABLE_NAME = "import_dados";
 const PREDICTION_FEEDBACK_TABLE = "failure_prediction_feedback";
+const FAILURE_CLASSIFICATION_CATEGORIES_TABLE = "failure_classification_categories";
 const AI_PREDICTION_COLUMN = "classificacao_pela_ia";
 const AI_CONFIDENCE_COLUMN = "confianca_classificacao_ia";
 const REVIEWED_CLASSIFICATION_COLUMN = "classificacao_validada";
@@ -257,6 +258,60 @@ export async function saveImportedClassification(id: string, classification: str
       );
       if (rows.length === 0) throw new Error("O registro não existe mais na tabela importada.");
     }
+  } finally {
+    await pool.end();
+  }
+}
+
+async function ensureFailureClassificationCategoriesTable(pool: ReturnType<typeof mysql.createPool>) {
+  await pool.query(
+    `CREATE TABLE IF NOT EXISTS ${identifier(FAILURE_CLASSIFICATION_CATEGORIES_TABLE)} (
+      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+      category VARCHAR(512) NOT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      UNIQUE KEY uq_failure_classification_category (category)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`,
+  );
+}
+
+export async function getFailureClassificationCategories() {
+  const pool = mysql.createPool(getConfig());
+
+  try {
+    await ensureFailureClassificationCategoriesTable(pool);
+    const [rows] = await pool.query<(RowDataPacket & { category: string })[]>(
+      `SELECT category
+       FROM ${identifier(FAILURE_CLASSIFICATION_CATEGORIES_TABLE)}
+       ORDER BY category`,
+    );
+    return rows.map(({ category }) => category);
+  } finally {
+    await pool.end();
+  }
+}
+
+export async function saveFailureClassificationCategory(category: string) {
+  const pool = mysql.createPool(getConfig());
+
+  try {
+    await ensureFailureClassificationCategoriesTable(pool);
+    await pool.execute(
+      `INSERT INTO ${identifier(FAILURE_CLASSIFICATION_CATEGORIES_TABLE)} (category)
+       VALUES (?)
+       ON DUPLICATE KEY UPDATE category = VALUES(category)`,
+      [category],
+    );
+    const [rows] = await pool.execute<(RowDataPacket & { category: string })[]>(
+      `SELECT category
+       FROM ${identifier(FAILURE_CLASSIFICATION_CATEGORIES_TABLE)}
+       WHERE category = ?
+       LIMIT 1`,
+      [category],
+    );
+    const savedCategory = rows[0]?.category;
+    if (!savedCategory) throw new Error("Não foi possível recuperar a falha adicionada.");
+    return savedCategory;
   } finally {
     await pool.end();
   }

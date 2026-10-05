@@ -2170,6 +2170,19 @@ h1 {
   color: var(--muted);
   cursor: not-allowed;
 }
+.classification-other-failure {
+  display: grid;
+  gap: 6px;
+  margin-top: 7px;
+}
+.classification-other-failure .classification-edit-input {
+  box-sizing: border-box;
+  min-width: 0;
+  width: 100%;
+}
+.classification-other-failure .classification-edit-button {
+  justify-self: start;
+}
 .classification-actions {
   align-items: flex-start;
   display: flex;

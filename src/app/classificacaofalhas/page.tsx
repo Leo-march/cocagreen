@@ -365,7 +365,11 @@ export default function FailureClassificationPage() {
   const isAdmin = useSyncExternalStore(subscribeToAuthChanges, getUserRole, () => "visitor") === "admin";
   const [data, setData] = useState<DashboardData | null>(null);
   const [classifications, setClassifications] = useState<ClassificationRecords>({});
+  const [customCategories, setCustomCategories] = useState<string[]>([]);
   const [editDrafts, setEditDrafts] = useState<Record<string, ClassificationEdit>>({});
+  const [otherFailureRows, setOtherFailureRows] = useState<Record<string, boolean>>({});
+  const [otherFailureInputs, setOtherFailureInputs] = useState<Record<string, string>>({});
+  const [savingOtherFailureRows, setSavingOtherFailureRows] = useState<Record<string, boolean>>({});
   const [filter, setFilter] = useState<ClassificationFilter>(emptyFilter);
   const [activeTab, setActiveTab] = useState<"pending" | "classified">("pending");
   const [isLoading, setIsLoading] = useState(true);
@@ -379,14 +383,23 @@ export default function FailureClassificationPage() {
     const controller = new AbortController();
     fetch("/api/classificacaofalhas", { signal: controller.signal })
       .then(async (response) => {
-        const payload = await response.json() as { data?: DashboardData | null; error?: string };
+        const payload = await response.json() as {
+          data?: DashboardData | null;
+          customCategories?: string[];
+          error?: string;
+        };
         if (!response.ok) throw new Error(payload.error || "Não foi possível carregar os dados.");
         setData(payload.data ?? null);
+        const loadedCustomCategories = Array.isArray(payload.customCategories)
+          ? payload.customCategories.filter((category): category is string => typeof category === "string")
+          : [];
+        setCustomCategories(loadedCustomCategories);
         try {
           const key = payload.data ? `cocagreen:classificacoes:${payload.data.tableName}` : "";
           const loadedRows = payload.data ? buildRows(payload.data) : [];
           const categories = new Set([
             ...failureCategories,
+            ...loadedCustomCategories,
             ...loadedRows.map(({ aiPrediction }) => aiPrediction).filter(Boolean),
           ]);
           const automaticClassifications = Object.fromEntries(
@@ -449,9 +462,10 @@ export default function FailureClassificationPage() {
   const classificationCategories = useMemo(
     () => Array.from(new Set([
       ...failureCategories,
+      ...customCategories,
       ...rows.map(({ aiPrediction }) => aiPrediction).filter(Boolean),
     ])),
-    [rows],
+    [customCategories, rows],
   );
   const effectiveRows = useMemo(
     () => rows.map((row) => getEffectiveRow(row, classifications[row.id])),
@@ -497,6 +511,48 @@ export default function FailureClassificationPage() {
     const next = { ...classifications };
     next[id] = { ...(next[id] ?? { category: "", approved: false, edits: {} }), category };
     saveRecords(next);
+  }
+
+  async function addOtherFailure(row: ClassificationRow) {
+    const category = (otherFailureInputs[row.id] ?? "").trim();
+    if (!category) {
+      setActionError("Digite o nome da falha antes de adicionar.");
+      return;
+    }
+    if (category.length > 512) {
+      setActionError("O nome da falha deve ter no máximo 512 caracteres.");
+      return;
+    }
+
+    setActionError("");
+    setSavingOtherFailureRows((current) => ({ ...current, [row.id]: true }));
+    try {
+      const response = await fetch("/api/classificacaofalhas", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ category }),
+      });
+      const payload = await response.json() as { category?: string; error?: string };
+      if (!response.ok || typeof payload.category !== "string") {
+        throw new Error(payload.error || "Não foi possível salvar a nova falha.");
+      }
+
+      const savedCategory = payload.category;
+      setCustomCategories((current) => current.includes(savedCategory)
+        ? current
+        : [...current, savedCategory]);
+      if (editDrafts[row.id]) {
+        updateEditDraft(row.id, "category", savedCategory);
+      } else {
+        updateClassification(row.id, savedCategory);
+      }
+      setOtherFailureRows((current) => ({ ...current, [row.id]: false }));
+      setOtherFailureInputs((current) => ({ ...current, [row.id]: "" }));
+    } catch (saveError) {
+      setActionError(saveError instanceof Error ? saveError.message : "Não foi possível salvar a nova falha.");
+    } finally {
+      setSavingOtherFailureRows((current) => ({ ...current, [row.id]: false }));
+    }
   }
 
   async function approveRow(row: ClassificationRow) {
@@ -852,9 +908,14 @@ export default function FailureClassificationPage() {
                         <select
                           className="classification-select"
                           aria-label={`Classificação do registro ${row.order || row.id}`}
-                          value={selectedCategory}
+                          value={otherFailureRows[row.id] ? "__other_failure__" : selectedCategory}
                           disabled={!isAdmin || (!loggedUser && !draft)}
                           onChange={(event) => {
+                            if (event.target.value === "__other_failure__") {
+                              setOtherFailureRows((current) => ({ ...current, [row.id]: true }));
+                              return;
+                            }
+                            setOtherFailureRows((current) => ({ ...current, [row.id]: false }));
                             if (draft) updateEditDraft(row.id, "category", event.target.value);
                             else updateClassification(row.id, event.target.value);
                           }}
@@ -863,7 +924,37 @@ export default function FailureClassificationPage() {
                           {classificationCategories.map((category) => (
                             <option key={category} value={category}>{category}</option>
                           ))}
+                          <option value="__other_failure__">Outra falha</option>
                         </select>
+                        {otherFailureRows[row.id] && (
+                          <div className="classification-other-failure">
+                            <input
+                              aria-label={`Descreva outra falha para o registro ${row.order || row.id}`}
+                              className="classification-edit-input"
+                              maxLength={512}
+                              value={otherFailureInputs[row.id] ?? ""}
+                              onChange={(event) => setOtherFailureInputs((current) => ({
+                                ...current,
+                                [row.id]: event.target.value,
+                              }))}
+                              onKeyDown={(event) => {
+                                if (event.key === "Enter") {
+                                  event.preventDefault();
+                                  void addOtherFailure(row);
+                                }
+                              }}
+                              placeholder="Digite o nome da falha"
+                            />
+                            <button
+                              type="button"
+                              className="button classification-edit-button"
+                              disabled={!otherFailureInputs[row.id]?.trim() || Boolean(savingOtherFailureRows[row.id])}
+                              onClick={() => void addOtherFailure(row)}
+                            >
+                              {savingOtherFailureRows[row.id] ? "Salvando..." : "Adicionar"}
+                            </button>
+                          </div>
+                        )}
                         <div className="classification-actions">
                           {isApproved ? (
                             <span className="classification-approved-badge">Aprovado</span>
