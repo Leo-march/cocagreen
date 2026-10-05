@@ -5,15 +5,16 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { useSyncExternalStore } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { clearLoggedInUser, getLoggedInUser, getUserRole, subscribeToAuthChanges } from "@/lib/client-auth";
 
-type IconName = "dashboard" | "search" | "file" | "table" | "settings" | "classification";
+type IconName = "dashboard" | "search" | "file" | "table" | "settings" | "classification" | "prediction";
 
 const navigation: { href: string; label: string; icon: IconName }[] = [
   { href: "/dashboard", label: "Dashboard", icon: "dashboard" },
   { href: "/pareto", label: "Análise", icon: "search" },
   { href: "/classificacaofalhas", label: "Classificação", icon: "classification" },
+  { href: "/predicoes", label: "Realizar nova predição", icon: "prediction" },
   { href: "/inserirdados", label: "Inserir dados", icon: "file" },
   { href: "/tabelas", label: "Tabelas", icon: "table" },
   { href: "/maquinas", label: "Máquinas", icon: "settings" },
@@ -79,6 +80,14 @@ function NavigationIcon({ name }: { name: IconName }) {
     );
   }
 
+  if (name === "prediction") {
+    return (
+      <svg viewBox="0 0 32 32" aria-hidden="true">
+        <path {...common} d="M16 4v15m0 0 6-6m-6 6-6-6M6 21v5a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-5" />
+      </svg>
+    );
+  }
+
   return (
     <svg viewBox="0 0 32 32" aria-hidden="true">
       <rect {...common} x="5" y="5" width="22" height="22" rx="2" />
@@ -92,10 +101,23 @@ export function AppShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const loggedUser = useSyncExternalStore(subscribeToAuthChanges, getLoggedInUser, () => null);
   const userRole = useSyncExternalStore(subscribeToAuthChanges, getUserRole, () => "visitor");
+  const [logoutError, setLogoutError] = useState("");
   const isAdmin = userRole === "admin";
   const visibleNavigation = navigationWithInsertLast.filter(
     (item) => isAdmin || item.href !== "/inserirdados",
   );
+
+  async function logOut() {
+    setLogoutError("");
+    try {
+      const response = await fetch("/api/auth", { method: "DELETE" });
+      if (!response.ok) throw new Error("Não foi possível encerrar a sessão no servidor.");
+      clearLoggedInUser();
+      router.push("/login");
+    } catch (error) {
+      setLogoutError(error instanceof Error ? error.message : "Não foi possível encerrar a sessão.");
+    }
+  }
 
   return (
     <div className="app-shell">
@@ -138,13 +160,11 @@ export function AppShell({ children }: { children: ReactNode }) {
             <button
               type="button"
               className="sidebar-logout"
-              onClick={() => {
-                clearLoggedInUser();
-                router.push("/login");
-              }}
+              onClick={() => void logOut()}
             >
               Sair
             </button>
+            {logoutError && <span role="alert">{logoutError}</span>}
           </div>
         )}
       </aside>
