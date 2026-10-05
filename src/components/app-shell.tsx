@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
-import { useSyncExternalStore } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { clearLoggedInUser, getLoggedInUser, getUserRole, subscribeToAuthChanges } from "@/lib/client-auth";
 
 type IconName = "dashboard" | "search" | "file" | "table" | "settings" | "classification" | "prediction";
@@ -101,10 +101,23 @@ export function AppShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const loggedUser = useSyncExternalStore(subscribeToAuthChanges, getLoggedInUser, () => null);
   const userRole = useSyncExternalStore(subscribeToAuthChanges, getUserRole, () => "visitor");
+  const [logoutError, setLogoutError] = useState("");
   const isAdmin = userRole === "admin";
   const visibleNavigation = navigationWithInsertLast.filter(
     (item) => isAdmin || item.href !== "/inserirdados",
   );
+
+  async function logOut() {
+    setLogoutError("");
+    try {
+      const response = await fetch("/api/auth", { method: "DELETE" });
+      if (!response.ok) throw new Error("Não foi possível encerrar a sessão no servidor.");
+      clearLoggedInUser();
+      router.push("/login");
+    } catch (error) {
+      setLogoutError(error instanceof Error ? error.message : "Não foi possível encerrar a sessão.");
+    }
+  }
 
   return (
     <div className="app-shell">
@@ -147,13 +160,11 @@ export function AppShell({ children }: { children: ReactNode }) {
             <button
               type="button"
               className="sidebar-logout"
-              onClick={() => {
-                clearLoggedInUser();
-                router.push("/login");
-              }}
+              onClick={() => void logOut()}
             >
               Sair
             </button>
+            {logoutError && <span role="alert">{logoutError}</span>}
           </div>
         )}
       </aside>

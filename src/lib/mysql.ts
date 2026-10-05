@@ -1,7 +1,56 @@
 import mysql, { type ResultSetHeader, type RowDataPacket } from "mysql2/promise";
+import { createHash } from "node:crypto";
 
 type ImportedRow = Record<string, unknown>;
 const FALLBACK_IMPORT_TABLE_NAME = "import_dados";
+const PREDICTION_FEEDBACK_TABLE = "failure_prediction_feedback";
+
+export type PredictionFeedbackInput = {
+  observation: string;
+  predictedLabel: string;
+  reviewedLabel: string;
+  confidence: number | null;
+  sourceFile: string;
+  createdBy: string;
+};
+
+export type PredictionFeedbackRow = {
+  id: number;
+  observation: string;
+  predicted_label: string;
+  reviewed_label: string;
+  confidence: number | null;
+  source_file: string;
+  status: "pending" | "approved" | "rejected";
+  created_by: string;
+  created_at: string;
+};
+
+function normalizeFeedbackValue(value: string) {
+  return value.normalize("NFKC").toLocaleLowerCase("pt-BR").replace(/\s+/g, " ").trim();
+}
+
+function normalizeFeedbackObservation(value: string) {
+  return value
+    .normalize("NFKC")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&apos;/gi, "'")
+    .replace(/&#39;/gi, "'")
+    .toLocaleLowerCase("pt-BR")
+    .replace(/<[^>]*>/g, " ")
+    .replace(/https?:\/\/\S+|www\.\S+/g, " ")
+    .replace(/[^\p{L}\p{N}_\s+#./-]/gu, " ")
+    .replace(/(?<![\p{L}\p{N}_])[+#./-]+|[+#./-]+(?![\p{L}\p{N}_])/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function hashFeedbackObservation(value: string) {
+  return createHash("sha256").update(normalizeFeedbackObservation(value)).digest("hex");
+}
 
 const identifier = (value: string) =>
   `\`${value.replace(/[^a-zA-Z0-9_]/g, "_").replace(/^(\d)/, "_$1") || "coluna"}\``;
@@ -20,6 +69,280 @@ function getConfig() {
     user: process.env.MYSQL_USER,
     password: process.env.MYSQL_PASSWORD || "root",
   };
+}
+
+async function ensurePredictionFeedbackTable(pool: ReturnType<typeof mysql.createPool>) {
+  const connection = await pool.getConnection();
+  const lockName = "cocagreen_prediction_feedback_schema";
+  try {
+    const [locks] = await connection.query<(RowDataPacket & { acquired: number | null })[]>(
+      "SELECT GET_LOCK(?, 10) AS acquired",
+      [lockName],
+    );
+    if (Number(locks[0]?.acquired) !== 1) {
+      throw new Error("Não foi possível bloquear a migração da fila de revisões no MySQL.");
+    }
+
+    try {
+      await connection.query(
+        `CREATE TABLE IF NOT EXISTS ${identifier(PREDICTION_FEEDBACK_TABLE)} (
+          id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+          observation LONGTEXT NOT NULL,
+          predicted_label VARCHAR(512) NOT NULL,
+          reviewed_label VARCHAR(512) NOT NULL,
+          confidence DECIMAL(7,6) NULL,
+          source_file VARCHAR(255) NOT NULL,
+          status ENUM('pending', 'approved', 'rejected') NOT NULL DEFAULT 'pending',
+          fingerprint CHAR(64) NOT NULL,
+          observation_fingerprint CHAR(64) NOT NULL,
+          approved_observation_fingerprint CHAR(64) NULL,
+          created_by VARCHAR(191) NOT NULL,
+          reviewed_by VARCHAR(191) NULL,
+          created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+          reviewed_at TIMESTAMP NULL,
+          PRIMARY KEY (id),
+          UNIQUE KEY uq_failure_feedback_fingerprint (fingerprint),
+          UNIQUE KEY uq_failure_feedback_approved_observation (approved_observation_fingerprint),
+          KEY ix_failure_feedback_observation (status, observation_fingerprint),
+          KEY ix_failure_feedback_status_created (status, created_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4`,
+      );
+
+      const [columnRows] = await connection.query<
+        (RowDataPacket & { COLUMN_NAME: string; IS_NULLABLE: string })[]
+      >(
+        `SELECT COLUMN_NAME, IS_NULLABLE
+         FROM INFORMATION_SCHEMA.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?`,
+        [PREDICTION_FEEDBACK_TABLE],
+      );
+      const columns = new Set(columnRows.map((row) => row.COLUMN_NAME));
+      const observationIsNullable = columnRows.find(
+        (row) => row.COLUMN_NAME === "observation_fingerprint",
+      )?.IS_NULLABLE === "YES";
+      const observationNeedsMigration = !columns.has("observation_fingerprint") || observationIsNullable;
+      const approvedNeedsMigration = !columns.has("approved_observation_fingerprint");
+      if (!columns.has("observation_fingerprint")) {
+        await connection.query(
+          `ALTER TABLE ${identifier(PREDICTION_FEEDBACK_TABLE)}
+           ADD COLUMN observation_fingerprint CHAR(64) NULL`,
+        );
+      }
+      if (!columns.has("approved_observation_fingerprint")) {
+        await connection.query(
+          `ALTER TABLE ${identifier(PREDICTION_FEEDBACK_TABLE)}
+           ADD COLUMN approved_observation_fingerprint CHAR(64) NULL`,
+        );
+      }
+
+      if (observationNeedsMigration || approvedNeedsMigration) {
+        const [feedbackRows] = await connection.query<
+          (RowDataPacket & { id: number | string; observation: string })[]
+        >(
+          `SELECT id, observation
+           FROM ${identifier(PREDICTION_FEEDBACK_TABLE)}
+           ${columns.has("observation_fingerprint") ? "WHERE observation_fingerprint IS NULL" : ""}`,
+        );
+        for (let start = 0; start < feedbackRows.length; start += 200) {
+          const batch = feedbackRows.slice(start, start + 200);
+          const cases = batch.map(() => "WHEN ? THEN ?").join(" ");
+          const ids = batch.map((row) => row.id);
+          const values = batch.flatMap((row) => [row.id, hashFeedbackObservation(row.observation)]);
+          await connection.execute(
+            `UPDATE ${identifier(PREDICTION_FEEDBACK_TABLE)}
+             SET observation_fingerprint = CASE id ${cases} ELSE observation_fingerprint END
+             WHERE id IN (${ids.map(() => "?").join(", ")})`,
+            [...values, ...ids],
+          );
+        }
+      }
+
+      if (observationNeedsMigration) {
+        await connection.query(
+          `ALTER TABLE ${identifier(PREDICTION_FEEDBACK_TABLE)}
+           MODIFY COLUMN observation_fingerprint CHAR(64) NOT NULL`,
+        );
+      }
+      await connection.query(
+        `UPDATE ${identifier(PREDICTION_FEEDBACK_TABLE)}
+         SET approved_observation_fingerprint = observation_fingerprint
+         WHERE status = 'approved' AND approved_observation_fingerprint IS NULL`,
+      );
+
+      const [indexRows] = await connection.query<(RowDataPacket & { INDEX_NAME: string })[]>(
+        `SELECT INDEX_NAME
+         FROM INFORMATION_SCHEMA.STATISTICS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?`,
+        [PREDICTION_FEEDBACK_TABLE],
+      );
+      const indexes = new Set(indexRows.map((row) => row.INDEX_NAME));
+      if (!indexes.has("uq_failure_feedback_approved_observation")) {
+        const [conflicts] = await connection.query<RowDataPacket[]>(
+          `SELECT observation_fingerprint, COUNT(*) AS occurrences
+           FROM ${identifier(PREDICTION_FEEDBACK_TABLE)}
+           WHERE status = 'approved'
+           GROUP BY observation_fingerprint
+           HAVING COUNT(*) > 1
+           LIMIT 1`,
+        );
+        if (conflicts.length > 0) {
+          throw new Error(
+            "A fila existente contém várias correções aprovadas para a mesma observação; resolva as duplicidades antes da migração.",
+          );
+        }
+        await connection.query(
+          `ALTER TABLE ${identifier(PREDICTION_FEEDBACK_TABLE)}
+           ADD UNIQUE KEY uq_failure_feedback_approved_observation (approved_observation_fingerprint)`,
+        );
+      }
+      if (!indexes.has("ix_failure_feedback_observation")) {
+        await connection.query(
+          `ALTER TABLE ${identifier(PREDICTION_FEEDBACK_TABLE)}
+           ADD KEY ix_failure_feedback_observation (status, observation_fingerprint)`,
+        );
+      }
+      if (!indexes.has("ix_failure_feedback_status_created")) {
+        await connection.query(
+          `ALTER TABLE ${identifier(PREDICTION_FEEDBACK_TABLE)}
+           ADD KEY ix_failure_feedback_status_created (status, created_at)`,
+        );
+      }
+    } finally {
+      await connection.query("SELECT RELEASE_LOCK(?)", [lockName]);
+    }
+  } finally {
+    connection.release();
+  }
+}
+
+export async function submitPredictionFeedback(rows: PredictionFeedbackInput[]) {
+  const pool = mysql.createPool(getConfig());
+
+  try {
+    await ensurePredictionFeedbackTable(pool);
+    let insertedRows = 0;
+    for (let start = 0; start < rows.length; start += 200) {
+      const batch = rows.slice(start, start + 200);
+      const values = batch.map((row) => {
+        const normalizedObservation = normalizeFeedbackObservation(row.observation);
+        const normalizedLabel = normalizeFeedbackValue(row.reviewedLabel);
+        const fingerprint = createHash("sha256")
+          .update(`${normalizedObservation}\u0000${normalizedLabel}`)
+          .digest("hex");
+        return [
+          row.observation,
+          row.predictedLabel,
+          row.reviewedLabel,
+          row.confidence,
+          row.sourceFile,
+          fingerprint,
+          hashFeedbackObservation(row.observation),
+          row.createdBy,
+        ];
+      });
+      const placeholders = values.map(() => "(?, ?, ?, ?, ?, ?, ?, ?)").join(", ");
+      const [result] = await pool.query<ResultSetHeader>(
+        `INSERT IGNORE INTO ${identifier(PREDICTION_FEEDBACK_TABLE)}
+          (observation, predicted_label, reviewed_label, confidence, source_file, fingerprint,
+           observation_fingerprint, created_by)
+         VALUES ${placeholders}`,
+        values.flat(),
+      );
+      insertedRows += result.affectedRows;
+    }
+    return { insertedRows, submittedRows: rows.length };
+  } finally {
+    await pool.end();
+  }
+}
+
+export async function listPredictionFeedback(status: "pending" | "approved" | "rejected" = "pending") {
+  const pool = mysql.createPool(getConfig());
+
+  try {
+    await ensurePredictionFeedbackTable(pool);
+    const [rows] = await pool.execute<
+      (RowDataPacket & PredictionFeedbackRow)[]
+    >(
+      `SELECT id, observation, predicted_label, reviewed_label, confidence, source_file,
+              status, created_by, DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at
+       FROM ${identifier(PREDICTION_FEEDBACK_TABLE)}
+       WHERE status = ?
+       ORDER BY created_at ASC, id ASC
+       LIMIT 500`,
+      [status],
+    );
+    return rows.map((row) => ({
+      ...row,
+      id: Number(row.id),
+      confidence: row.confidence === null ? null : Number(row.confidence),
+    }));
+  } finally {
+    await pool.end();
+  }
+}
+
+export async function reviewPredictionFeedback(
+  id: number,
+  status: "approved" | "rejected",
+  reviewedBy: string,
+) {
+  const pool = mysql.createPool(getConfig());
+
+  try {
+    await ensurePredictionFeedbackTable(pool);
+    const [pending] = await pool.execute<
+      (RowDataPacket & { observation_fingerprint: string })[]
+    >(
+      `SELECT observation_fingerprint
+       FROM ${identifier(PREDICTION_FEEDBACK_TABLE)}
+       WHERE id = ? AND status = 'pending'`,
+      [id],
+    );
+    if (!pending[0]) return { updated: false, conflict: false };
+
+    try {
+      const [result] = await pool.execute<ResultSetHeader>(
+        `UPDATE ${identifier(PREDICTION_FEEDBACK_TABLE)}
+         SET status = ?,
+             approved_observation_fingerprint = CASE WHEN ? = 'approved' THEN observation_fingerprint ELSE NULL END,
+             reviewed_by = ?, reviewed_at = CURRENT_TIMESTAMP
+         WHERE id = ? AND status = 'pending'`,
+        [status, status, reviewedBy, id],
+      );
+      return { updated: result.affectedRows === 1, conflict: false };
+    } catch (error) {
+      if (error instanceof Error && "code" in error && error.code === "ER_DUP_ENTRY") {
+        return { updated: false, conflict: true };
+      }
+      throw error;
+    }
+  } finally {
+    await pool.end();
+  }
+}
+
+export async function getApprovedPredictionFeedback() {
+  const pool = mysql.createPool(getConfig());
+
+  try {
+    await ensurePredictionFeedbackTable(pool);
+    const [rows] = await pool.query<
+      (RowDataPacket & { id: number; observation: string; reviewed_label: string })[]
+    >(
+      `SELECT id, observation, reviewed_label
+       FROM ${identifier(PREDICTION_FEEDBACK_TABLE)}
+       WHERE status = 'approved'
+       ORDER BY id ASC`,
+    );
+    return rows.map((row) => ({
+      id: Number(row.id),
+      observation: row.observation,
+      reviewed_label: row.reviewed_label,
+    }));
+  } finally {
+    await pool.end();
+  }
 }
 
 export async function saveImportedTable(
