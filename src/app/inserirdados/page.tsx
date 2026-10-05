@@ -1,7 +1,9 @@
 "use client";
 
 import Image from "next/image";
+import Link from "next/link";
 import { ChangeEvent, useState } from "react";
+import { getLoggedInUser, getUserRole } from "@/lib/client-auth";
 
 type ImportResult = {
   sheet: string;
@@ -18,6 +20,26 @@ export default function InsertDataPage() {
   const [result, setResult] = useState<ImportResult | null>(null);
   const [error, setError] = useState("");
   const [isImporting, setIsImporting] = useState(false);
+  const loggedUser = getLoggedInUser();
+  const isAdmin = getUserRole() === "admin";
+
+  if (!isAdmin) {
+    return (
+      <div className="dashboard-page dashboard-with-brand-bg login-page">
+        <section className="login-card" aria-labelledby="readonly-title">
+          <p className="eyebrow">ACESSO RESTRITO</p>
+          <h1 id="readonly-title">Modo visitante</h1>
+          <p className="page-subtitle">
+            {loggedUser ? `${loggedUser} está visualizando em modo somente leitura.` : "Você está em modo somente leitura."}
+          </p>
+          <p className="login-error" role="alert">Somente a Talita pode importar e editar dados.</p>
+          <Link className="button button-primary login-submit" href="/dashboard">
+            Voltar para visualização
+          </Link>
+        </section>
+      </div>
+    );
+  }
 
   function selectFile(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0] ?? null;

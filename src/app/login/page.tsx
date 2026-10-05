@@ -1,10 +1,9 @@
 "use client";
 
 import Image from "next/image";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
-import { setLoggedInUser } from "@/lib/client-auth";
+import { setLoggedInUser, setVisitorSession } from "@/lib/client-auth";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -16,17 +15,19 @@ export default function LoginPage() {
     event.preventDefault();
     setError("");
 
-    if (username !== "12345" || password !== "12345") {
-      setError("Usuário ou senha inválidos.");
+    const normalizedName = username.trim();
+    if (normalizedName.toLowerCase() === "talita" && password === "1234") {
+      setLoggedInUser("Talita", "admin");
+      router.push("/dashboard");
       return;
     }
 
-    try {
-      setLoggedInUser(username);
-      router.push("/classificacaofalhas");
-    } catch {
-      setError("Não foi possível iniciar a sessão neste navegador.");
-    }
+    setError("Credenciais inválidas. Use Talita / 1234 ou entre como visitante.");
+  }
+
+  function handleVisitorAccess() {
+    setVisitorSession();
+    router.push("/dashboard");
   }
 
   return (
@@ -41,16 +42,23 @@ export default function LoginPage() {
           priority
         />
         <p className="eyebrow">COCA GREEN</p>
-        <h1 id="login-title">Fazer login</h1>
-        <p className="page-subtitle">Acesse sua área de classificação de dados.</p>
+        <h1 id="login-title">Acesso ao sistema</h1>
+        <p className="page-subtitle">Entre como visitante para visualizar ou use o cadastro da Talita para gerenciar.</p>
+
+        <div className="login-role-switch" aria-label="Tipo de acesso">
+          <button type="button" className="login-role-button login-role-button-active" onClick={handleVisitorAccess}>
+            Entrar como visitante
+          </button>
+        </div>
 
         <form className="login-form" onSubmit={handleSubmit}>
           <label>
-            <span>Usuário</span>
+            <span>Nome</span>
             <input
               autoComplete="username"
               name="username"
               onChange={(event) => setUsername(event.target.value)}
+              placeholder="Nome"
               required
               value={username}
             />
@@ -61,6 +69,7 @@ export default function LoginPage() {
               autoComplete="current-password"
               name="password"
               onChange={(event) => setPassword(event.target.value)}
+              placeholder="Senha"
               required
               type="password"
               value={password}
@@ -68,13 +77,9 @@ export default function LoginPage() {
           </label>
           {error && <p className="login-error" role="alert">{error}</p>}
           <button className="button button-primary login-submit" type="submit">
-            Entrar
+            Entrar com cadastro
           </button>
         </form>
-
-        <Link className="login-back-link" href="/classificacaofalhas">
-          Voltar para classificação
-        </Link>
       </section>
     </div>
   );
