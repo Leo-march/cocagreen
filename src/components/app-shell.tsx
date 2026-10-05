@@ -8,12 +8,13 @@ import { useRouter } from "next/navigation";
 import { useSyncExternalStore } from "react";
 import { clearLoggedInUser, getLoggedInUser, getUserRole, subscribeToAuthChanges } from "@/lib/client-auth";
 
-type IconName = "dashboard" | "search" | "file" | "table" | "settings" | "classification";
+type IconName = "dashboard" | "search" | "file" | "table" | "settings" | "classification" | "prediction";
 
 const navigation: { href: string; label: string; icon: IconName }[] = [
   { href: "/dashboard", label: "Dashboard", icon: "dashboard" },
   { href: "/pareto", label: "Análise", icon: "search" },
   { href: "/classificacaofalhas", label: "Classificação", icon: "classification" },
+  { href: "/predicoes", label: "Realizar nova predição", icon: "prediction" },
   { href: "/inserirdados", label: "Inserir dados", icon: "file" },
   { href: "/tabelas", label: "Tabelas", icon: "table" },
   { href: "/maquinas", label: "Máquinas", icon: "settings" },
@@ -75,6 +76,14 @@ function NavigationIcon({ name }: { name: IconName }) {
       <svg viewBox="0 0 32 32" aria-hidden="true">
         <path {...common} d="M8 5h16a2 2 0 0 1 2 2v19H6V7a2 2 0 0 1 2-2Z" />
         <path {...common} d="M11 12h3M17 12h4M11 18h3M17 18h4M11 24l2 2 4-4" />
+      </svg>
+    );
+  }
+
+  if (name === "prediction") {
+    return (
+      <svg viewBox="0 0 32 32" aria-hidden="true">
+        <path {...common} d="M16 4v15m0 0 6-6m-6 6-6-6M6 21v5a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-5" />
       </svg>
     );
   }

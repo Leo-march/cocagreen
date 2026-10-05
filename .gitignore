@@ -20,6 +20,8 @@
 
 # production
 /build
+/scripts/resultado_modelo_falhas/
+__pycache__/
 
 # misc
 .DS_Store
