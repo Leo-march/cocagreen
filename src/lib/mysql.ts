@@ -4,6 +4,16 @@ import { createHash } from "node:crypto";
 type ImportedRow = Record<string, unknown>;
 const FALLBACK_IMPORT_TABLE_NAME = "import_dados";
 const PREDICTION_FEEDBACK_TABLE = "failure_prediction_feedback";
+const AI_PREDICTION_COLUMN = "classificacao_pela_ia";
+const AI_CONFIDENCE_COLUMN = "confianca_classificacao_ia";
+const REVIEWED_CLASSIFICATION_COLUMN = "classificacao_validada";
+const CLASSIFICATION_APPROVED_COLUMN = "classificacao_ia_aprovada";
+
+export type ImportedPrediction = {
+  id: string;
+  label: string;
+  confidence: number;
+};
 
 export type PredictionFeedbackInput = {
   observation: string;
@@ -55,6 +65,10 @@ function hashFeedbackObservation(value: string) {
 const identifier = (value: string) =>
   `\`${value.replace(/[^a-zA-Z0-9_]/g, "_").replace(/^(\d)/, "_$1") || "coluna"}\``;
 
+function normalizeImportedColumn(value: string) {
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
 function getConfig() {
   const required = ["MYSQL_HOST", "MYSQL_DATABASE", "MYSQL_USER"] as const;
   const missing = required.filter((name) => !process.env[name]);
@@ -69,6 +83,183 @@ function getConfig() {
     user: process.env.MYSQL_USER,
     password: process.env.MYSQL_PASSWORD || "root",
   };
+}
+
+export async function getUnpredictedLatestImportedRows() {
+  const pool = mysql.createPool(getConfig());
+
+  try {
+    const [tables] = await pool.query<(RowDataPacket & { table_name: string })[]>(
+      `SELECT TABLE_NAME AS table_name
+       FROM information_schema.TABLES
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME LIKE 'import\\_%'
+       ORDER BY CREATE_TIME DESC
+       LIMIT 1`,
+    );
+    const tableName = tables[0]?.table_name;
+    if (!tableName) return null;
+
+    const [columnRows] = await pool.query<(RowDataPacket & { column_name: string })[]>(
+      `SELECT COLUMN_NAME AS column_name
+       FROM information_schema.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?
+       ORDER BY ORDINAL_POSITION`,
+      [tableName],
+    );
+    const columns = columnRows.map(({ column_name }) => column_name);
+    const normalizedColumns = columns.map((column) => ({
+      column,
+      normalized: normalizeImportedColumn(column),
+    }));
+    const observationColumn = normalizedColumns.find(({ normalized }) =>
+      ["observacao", "observacoes", "observation", "observations"].includes(normalized),
+    )?.column ?? normalizedColumns.find(({ normalized }) =>
+      /^(observacao|observacoes|observation|observations)(?:(?:da|de)?parada)?$/.test(normalized),
+    )?.column;
+    if (!observationColumn) {
+      throw new Error("A tabela importada não contém uma coluna de observações reconhecida.");
+    }
+
+    const existingColumns = new Set(columns);
+    if (!existingColumns.has(AI_PREDICTION_COLUMN)) {
+      await pool.query(
+        `ALTER TABLE ${identifier(tableName)}
+         ADD COLUMN ${identifier(AI_PREDICTION_COLUMN)} TEXT NULL AFTER ${identifier(observationColumn)}`,
+      );
+    }
+    if (!existingColumns.has(AI_CONFIDENCE_COLUMN)) {
+      await pool.query(
+        `ALTER TABLE ${identifier(tableName)}
+         ADD COLUMN ${identifier(AI_CONFIDENCE_COLUMN)} DECIMAL(7,6) NULL AFTER ${identifier(AI_PREDICTION_COLUMN)}`,
+      );
+    }
+    if (!existingColumns.has(REVIEWED_CLASSIFICATION_COLUMN)) {
+      await pool.query(
+        `ALTER TABLE ${identifier(tableName)}
+         ADD COLUMN ${identifier(REVIEWED_CLASSIFICATION_COLUMN)} TEXT NULL AFTER ${identifier(AI_CONFIDENCE_COLUMN)}`,
+      );
+    }
+    if (!existingColumns.has(CLASSIFICATION_APPROVED_COLUMN)) {
+      await pool.query(
+        `ALTER TABLE ${identifier(tableName)}
+         ADD COLUMN ${identifier(CLASSIFICATION_APPROVED_COLUMN)} TINYINT(1) NOT NULL DEFAULT 0 AFTER ${identifier(REVIEWED_CLASSIFICATION_COLUMN)}`,
+      );
+    }
+    await pool.query(
+      `UPDATE ${identifier(tableName)}
+       SET ${identifier(REVIEWED_CLASSIFICATION_COLUMN)} = ${identifier(AI_PREDICTION_COLUMN)},
+           ${identifier(CLASSIFICATION_APPROVED_COLUMN)} = 1
+       WHERE ${identifier(REVIEWED_CLASSIFICATION_COLUMN)} IS NULL
+         AND ${identifier(CLASSIFICATION_APPROVED_COLUMN)} = 0
+         AND ${identifier(AI_PREDICTION_COLUMN)} IS NOT NULL
+         AND ${identifier(AI_CONFIDENCE_COLUMN)} > 0.9`,
+    );
+
+    const [rows] = await pool.query<
+      (RowDataPacket & { id: string | number; observation: string | null })[]
+    >(
+      `SELECT \`id\`, ${identifier(observationColumn)} AS observation
+       FROM ${identifier(tableName)}
+       WHERE ${identifier(AI_PREDICTION_COLUMN)} IS NULL
+         AND ${identifier(observationColumn)} IS NOT NULL
+         AND TRIM(${identifier(observationColumn)}) <> ''`,
+    );
+
+    return {
+      tableName,
+      rows: rows.map((row) => ({
+        id: String(row.id),
+        observation: String(row.observation ?? ""),
+      })),
+    };
+  } finally {
+    await pool.end();
+  }
+}
+
+export async function saveLatestImportedPredictions(
+  tableName: string,
+  predictions: ImportedPrediction[],
+) {
+  const pool = mysql.createPool(getConfig());
+
+  try {
+    for (let start = 0; start < predictions.length; start += 200) {
+      const batch = predictions.slice(start, start + 200);
+      const labelCases = batch.map(() => "WHEN ? THEN ?").join(" ");
+      const confidenceCases = batch.map(() => "WHEN ? THEN ?").join(" ");
+      const ids = batch.map(({ id }) => id);
+      await pool.execute<ResultSetHeader>(
+        `UPDATE ${identifier(tableName)}
+         SET ${identifier(AI_PREDICTION_COLUMN)} = CASE id ${labelCases} ELSE ${identifier(AI_PREDICTION_COLUMN)} END,
+             ${identifier(AI_CONFIDENCE_COLUMN)} = CASE id ${confidenceCases} ELSE ${identifier(AI_CONFIDENCE_COLUMN)} END,
+             ${identifier(REVIEWED_CLASSIFICATION_COLUMN)} = CASE id ${batch.map(() => "WHEN ? THEN IF(? > 0.9, ?, NULL)").join(" ")} ELSE ${identifier(REVIEWED_CLASSIFICATION_COLUMN)} END,
+             ${identifier(CLASSIFICATION_APPROVED_COLUMN)} = CASE id ${batch.map(() => "WHEN ? THEN IF(? > 0.9, 1, 0)").join(" ")} ELSE ${identifier(CLASSIFICATION_APPROVED_COLUMN)} END
+         WHERE id IN (${ids.map(() => "?").join(", ")})
+           AND ${identifier(AI_PREDICTION_COLUMN)} IS NULL`,
+        [
+          ...batch.flatMap(({ id, label }) => [id, label]),
+          ...batch.flatMap(({ id, confidence }) => [id, confidence]),
+          ...batch.flatMap(({ id, confidence, label }) => [id, confidence, label]),
+          ...batch.flatMap(({ id, confidence }) => [id, confidence]),
+          ...ids,
+        ],
+      );
+    }
+  } finally {
+    await pool.end();
+  }
+}
+
+export async function saveImportedClassification(id: string, classification: string, approved: boolean) {
+  const pool = mysql.createPool(getConfig());
+
+  try {
+    const [tables] = await pool.query<(RowDataPacket & { table_name: string })[]>(
+      `SELECT TABLE_NAME AS table_name
+       FROM information_schema.TABLES
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME LIKE 'import\\_%'
+       ORDER BY CREATE_TIME DESC
+       LIMIT 1`,
+    );
+    const tableName = tables[0]?.table_name;
+    if (!tableName) throw new Error("Não há tabela importada para salvar a classificação.");
+
+    const [columns] = await pool.query<(RowDataPacket & { column_name: string })[]>(
+      `SELECT COLUMN_NAME AS column_name
+       FROM information_schema.COLUMNS
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?`,
+      [tableName],
+    );
+    const existingColumns = new Set(columns.map(({ column_name }) => column_name));
+    if (!existingColumns.has(REVIEWED_CLASSIFICATION_COLUMN)) {
+      await pool.query(
+        `ALTER TABLE ${identifier(tableName)} ADD COLUMN ${identifier(REVIEWED_CLASSIFICATION_COLUMN)} TEXT NULL`,
+      );
+    }
+    if (!existingColumns.has(CLASSIFICATION_APPROVED_COLUMN)) {
+      await pool.query(
+        `ALTER TABLE ${identifier(tableName)} ADD COLUMN ${identifier(CLASSIFICATION_APPROVED_COLUMN)} TINYINT(1) NOT NULL DEFAULT 0`,
+      );
+    }
+
+    const [result] = await pool.execute<ResultSetHeader>(
+      `UPDATE ${identifier(tableName)}
+       SET ${identifier(REVIEWED_CLASSIFICATION_COLUMN)} = ?,
+           ${identifier(CLASSIFICATION_APPROVED_COLUMN)} = ?
+       WHERE id = ?`,
+      [classification || null, approved ? 1 : 0, id],
+    );
+    if (result.affectedRows === 0) {
+      const [rows] = await pool.execute<RowDataPacket[]>(
+        `SELECT id FROM ${identifier(tableName)} WHERE id = ? LIMIT 1`,
+        [id],
+      );
+      if (rows.length === 0) throw new Error("O registro não existe mais na tabela importada.");
+    }
+  } finally {
+    await pool.end();
+  }
 }
 
 async function ensurePredictionFeedbackTable(pool: ReturnType<typeof mysql.createPool>) {

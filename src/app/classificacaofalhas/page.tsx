@@ -21,6 +21,10 @@ type ClassificationRow = {
   line: string;
   downtime: string;
   observations: string;
+  aiPrediction: string;
+  aiConfidence: number | null;
+  approvedClassification: string;
+  classificationApproved: boolean;
 };
 
 type ClassificationFilter = {
@@ -239,6 +243,12 @@ function readCell(row: Record<string, unknown>, column: string | undefined) {
   return column ? String(row[column] ?? "").trim() : "";
 }
 
+function readConfidence(value: unknown) {
+  if (value === null || value === undefined || String(value).trim() === "") return null;
+  const confidence = Number(value);
+  return Number.isFinite(confidence) && confidence >= 0 && confidence <= 1 ? confidence : null;
+}
+
 function buildRows(data: DashboardData): ClassificationRow[] {
   const dateColumn = findColumn(data.columns, /data|date|inicio|abertura|ocorrencia/);
   const shiftColumn = findColumn(data.columns, /turno|shift/);
@@ -249,6 +259,10 @@ function buildRows(data: DashboardData): ClassificationRow[] {
   const downtimeColumn = findColumn(data.columns, /minut.*parada|parada.*minut|tempo.*parada|duracao|duration|downtime|^parada$/)
     ?? findColumn(data.columns, /minut/);
   const observationsColumn = findObservationsColumn(data.columns);
+  const aiPredictionColumn = findColumn(data.columns, /^classificacao_pela_ia$/);
+  const aiConfidenceColumn = findColumn(data.columns, /^confianca_classificacao_ia$/);
+  const approvedClassificationColumn = findColumn(data.columns, /^classificacao_validada$/);
+  const classificationApprovedColumn = findColumn(data.columns, /^classificacao_ia_aprovada$/);
 
   return data.rows.map((row, index) => ({
     id: `${data.tableName}:${String(row.id ?? index)}`,
@@ -260,10 +274,16 @@ function buildRows(data: DashboardData): ClassificationRow[] {
     line: readCell(row, lineColumn),
     downtime: readCell(row, downtimeColumn),
     observations: readCell(row, observationsColumn),
+    aiPrediction: readCell(row, aiPredictionColumn),
+    aiConfidence: aiConfidenceColumn ? readConfidence(row[aiConfidenceColumn]) : null,
+    approvedClassification: readCell(row, approvedClassificationColumn),
+    classificationApproved: classificationApprovedColumn
+      ? ["1", "true"].includes(readCell(row, classificationApprovedColumn).toLowerCase())
+      : false,
   }));
 }
 
-function readStoredClassifications(value: string | null): ClassificationRecords {
+function readStoredClassifications(value: string | null, categories: ReadonlySet<string>): ClassificationRecords {
   if (!value) return {};
   const parsed: unknown = JSON.parse(value);
   if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed)) {
@@ -273,7 +293,7 @@ function readStoredClassifications(value: string | null): ClassificationRecords 
   const records: ClassificationRecords = {};
   for (const [id, storedRecord] of Object.entries(parsed)) {
     if (typeof storedRecord === "string") {
-      if (storedRecord && !failureCategories.includes(storedRecord)) {
+      if (storedRecord && !categories.has(storedRecord)) {
         throw new Error("Há classificações salvas com categorias inválidas.");
       }
       records[id] = { category: storedRecord, approved: Boolean(storedRecord), edits: {} };
@@ -286,7 +306,7 @@ function readStoredClassifications(value: string | null): ClassificationRecords 
 
     const record = storedRecord as Record<string, unknown>;
     const category = typeof record.category === "string" ? record.category : "";
-    if (category && !failureCategories.includes(category)) {
+    if (category && !categories.has(category)) {
       throw new Error("Há classificações salvas com categorias inválidas.");
     }
     if (typeof record.approved !== "boolean") {
@@ -354,17 +374,44 @@ export default function FailureClassificationPage() {
   const [error, setError] = useState("");
   const [actionError, setActionError] = useState("");
   const [storageWarning, setStorageWarning] = useState("");
+  const [savingClassificationIds, setSavingClassificationIds] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     const controller = new AbortController();
-    fetch("/api/dashboard-data", { signal: controller.signal })
+    fetch("/api/classificacaofalhas", { signal: controller.signal })
       .then(async (response) => {
         const payload = await response.json() as { data?: DashboardData | null; error?: string };
         if (!response.ok) throw new Error(payload.error || "Não foi possível carregar os dados.");
         setData(payload.data ?? null);
         try {
           const key = payload.data ? `cocagreen:classificacoes:${payload.data.tableName}` : "";
-          setClassifications(readStoredClassifications(key ? localStorage.getItem(key) : null));
+          const loadedRows = payload.data ? buildRows(payload.data) : [];
+          const categories = new Set([
+            ...failureCategories,
+            ...loadedRows.map(({ aiPrediction }) => aiPrediction).filter(Boolean),
+          ]);
+          const automaticClassifications = Object.fromEntries(
+            loadedRows
+              .filter(({ aiPrediction, aiConfidence }) => aiPrediction && aiConfidence !== null && aiConfidence > 0.9)
+              .map(({ id, aiPrediction }) => [id, { category: aiPrediction, approved: true, edits: {} }]),
+          ) as ClassificationRecords;
+          const databaseClassifications = Object.fromEntries(
+            loadedRows
+              .filter(({ classificationApproved }) => classificationApproved)
+              .map(({ id, approvedClassification }) => [
+                id,
+                { category: approvedClassification, approved: true, edits: {} },
+              ]),
+          ) as ClassificationRecords;
+          const savedClassifications = readStoredClassifications(
+            key ? localStorage.getItem(key) : null,
+            categories,
+          );
+          setClassifications({
+            ...automaticClassifications,
+            ...savedClassifications,
+            ...databaseClassifications,
+          });
           setStorageReady(true);
         } catch (storageError) {
           setStorageWarning(storageError instanceof Error
@@ -398,6 +445,13 @@ export default function FailureClassificationPage() {
   );
   const shiftOptions = useMemo(
     () => Array.from(new Set(rows.map(({ shift }) => shift).filter(Boolean))).sort(),
+    [rows],
+  );
+  const classificationCategories = useMemo(
+    () => Array.from(new Set([
+      ...failureCategories,
+      ...rows.map(({ aiPrediction }) => aiPrediction).filter(Boolean),
+    ])),
     [rows],
   );
   const effectiveRows = useMemo(
@@ -446,18 +500,55 @@ export default function FailureClassificationPage() {
     saveRecords(next);
   }
 
-  function approveRow(id: string) {
+  async function approveRow(row: ClassificationRow) {
     if (!isAdmin) {
       setActionError("Acesso restrito: somente a Talita pode aprovar classificações.");
       return;
     }
-    const record = classifications[id];
-    if (!record?.category) {
-      setActionError("Selecione uma classificação antes de aprovar o registro.");
-      return;
+    const category = classifications[row.id]?.category || row.aiPrediction;
+    const databaseId = row.id.slice(row.id.lastIndexOf(":") + 1);
+    setActionError("");
+    setSavingClassificationIds((current) => ({ ...current, [row.id]: true }));
+    try {
+      const response = await fetch("/api/classificacaofalhas", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: databaseId, classification: category, approved: true }),
+      });
+      const payload = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(payload.error || "Não foi possível salvar a classificação no banco de dados.");
+
+      const next = {
+        ...classifications,
+        [row.id]: {
+          ...(classifications[row.id] ?? { category: "", approved: false, edits: {} }),
+          category,
+          approved: true,
+        },
+      };
+      setClassifications(next);
+      if (data) {
+        try {
+          localStorage.setItem(`cocagreen:classificacoes:${data.tableName}`, JSON.stringify(next));
+          setStorageWarning("");
+        } catch (storageError) {
+          setStorageWarning(storageError instanceof Error
+            ? `A classificação foi salva no banco, mas não foi sincronizada neste navegador. ${storageError.message}`
+            : "A classificação foi salva no banco, mas não foi sincronizada neste navegador.");
+        }
+      }
+      setActiveTab("classified");
+    } catch (approvalError) {
+      setActionError(approvalError instanceof Error
+        ? approvalError.message
+        : "Não foi possível salvar a classificação no banco de dados.");
+    } finally {
+      setSavingClassificationIds((current) => {
+        const next = { ...current };
+        delete next[row.id];
+        return next;
+      });
     }
-    const next = { ...classifications, [id]: { ...record, approved: true } };
-    if (saveRecords(next)) setActiveTab("classified");
   }
 
   function startEditing(row: ClassificationRow) {
@@ -488,24 +579,49 @@ export default function FailureClassificationPage() {
     setActionError("");
   }
 
-  function saveEditing(id: string) {
+  async function saveEditing(id: string) {
     if (!isAdmin) {
       setActionError("Acesso restrito: somente a Talita pode salvar alterações.");
       return;
     }
     const draft = editDrafts[id];
     if (!draft) return;
-    if (draft.category && !failureCategories.includes(draft.category)) {
+    if (draft.category && !classificationCategories.includes(draft.category)) {
       setActionError("Selecione uma classificação válida.");
       return;
     }
 
     const current = classifications[id] ?? { category: "", approved: false, edits: {} };
+    const row = rows.find((candidate) => candidate.id === id);
+    if (!row) {
+      setActionError("O registro não está mais disponível.");
+      return;
+    }
+    const databaseId = id.slice(id.lastIndexOf(":") + 1);
+    try {
+      const response = await fetch("/api/classificacaofalhas", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: databaseId,
+          classification: draft.category || row.aiPrediction,
+          approved: current.approved,
+        }),
+      });
+      const payload = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(payload.error || "Não foi possível salvar a classificação no banco de dados.");
+    } catch (saveError) {
+      setActionError(saveError instanceof Error
+        ? saveError.message
+        : "Não foi possível salvar a classificação no banco de dados.");
+      return;
+    }
+
     const next = {
       ...classifications,
       [id]: {
         ...current,
-        category: draft.category,
+        category: draft.category || row.aiPrediction,
         edits: {
           date: draft.date,
           shift: draft.shift,
@@ -538,7 +654,10 @@ export default function FailureClassificationPage() {
         <div>
           <p className="eyebrow">DADOS DA OPERAÇÃO</p>
           <h1>Classificação de dados</h1>
-          <p className="page-subtitle">Revise os registros de parada e classifique cada ocorrência.</p>
+          <p className="page-subtitle">
+            Revise os registros de parada e classifique cada ocorrência. A confiança exibida é uma estimativa do modelo,
+            não uma garantia de acerto.
+          </p>
         </div>
         {loggedUser ? (
           <div className="classification-user" aria-label={`Usuário logado: ${loggedUser}`}>
@@ -665,6 +784,7 @@ export default function FailureClassificationPage() {
                   <th>Máquina / linha</th>
                   <th>Parada (min)</th>
                   <th>Observações</th>
+                  <th>Classificação pela IA</th>
                   <th>Classificação</th>
                   <th>Ações</th>
                 </tr>
@@ -673,9 +793,12 @@ export default function FailureClassificationPage() {
                 {visibleRows.map((row) => {
                   const draft = editDrafts[row.id];
                   const isApproved = Boolean(classifications[row.id]?.approved);
+                  const selectedCategory = draft?.category
+                    ?? classifications[row.id]?.category
+                    ?? row.aiPrediction;
                   return (
                     <tr key={row.id}>
-                      <td>
+                      <td data-label="Data / turno">
                         {draft ? (
                           <div className="classification-edit-stack">
                             <input
@@ -699,7 +822,7 @@ export default function FailureClassificationPage() {
                           </>
                         )}
                       </td>
-                      <td>
+                      <td data-label="Ordem">
                         {draft ? (
                           <input
                             aria-label={`Ordem do registro ${row.order || row.id}`}
@@ -709,7 +832,7 @@ export default function FailureClassificationPage() {
                           />
                         ) : row.order || "—"}
                       </td>
-                      <td>
+                      <td data-label="Linha">
                         {draft ? (
                           <input
                             aria-label={`Linha do registro ${row.order || row.id}`}
@@ -719,7 +842,7 @@ export default function FailureClassificationPage() {
                           />
                         ) : row.line || "Linha não informada"}
                       </td>
-                      <td>
+                      <td data-label="Máquina / linha">
                         {draft ? (
                           <div className="classification-edit-stack">
                             <input
@@ -742,7 +865,7 @@ export default function FailureClassificationPage() {
                           </>
                         )}
                       </td>
-                      <td>
+                      <td data-label="Parada (min)">
                         {draft ? (
                           <input
                             aria-label={`Tempo de parada do registro ${row.order || row.id}`}
@@ -753,7 +876,7 @@ export default function FailureClassificationPage() {
                           />
                         ) : row.downtime ? `${row.downtime} min` : "—"}
                       </td>
-                      <td className="classification-description">
+                      <td className="classification-description" data-label="Observações">
                         {draft ? (
                           <textarea
                             aria-label={`Observações do registro ${row.order || row.id}`}
@@ -763,11 +886,23 @@ export default function FailureClassificationPage() {
                           />
                         ) : row.observations || "Sem observações"}
                       </td>
-                      <td>
+                      <td data-label="Classificação pela IA">
+                        {row.aiPrediction ? (
+                          <>
+                            <strong>{row.aiPrediction}</strong>
+                            <span>
+                              {row.aiConfidence === null
+                                ? "Confiança indisponível"
+                                : `${row.aiConfidence > 0.9 ? "Classificada automaticamente" : "Pendente"} · confiança estimada ${(row.aiConfidence * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%`}
+                            </span>
+                          </>
+                        ) : "Sem predição"}
+                      </td>
+                      <td data-label="Classificação">
                         <select
                           className="classification-select"
                           aria-label={`Classificação do registro ${row.order || row.id}`}
-                          value={draft?.category ?? classifications[row.id]?.category ?? ""}
+                          value={selectedCategory}
                           disabled={!isAdmin || (!loggedUser && !draft)}
                           onChange={(event) => {
                             if (draft) updateEditDraft(row.id, "category", event.target.value);
@@ -775,12 +910,12 @@ export default function FailureClassificationPage() {
                           }}
                         >
                           <option value="">Selecione uma classificação</option>
-                          {failureCategories.map((category) => (
+                          {classificationCategories.map((category) => (
                             <option key={category} value={category}>{category}</option>
                           ))}
                         </select>
                       </td>
-                      <td>
+                      <td data-label="Ações">
                         <div className="classification-actions">
                           {isApproved ? (
                             <span className="classification-approved-badge">Aprovado</span>
@@ -788,11 +923,11 @@ export default function FailureClassificationPage() {
                             <button
                               type="button"
                               className="button classification-approve-button"
-                              disabled={!isAdmin || Boolean(draft)}
-                              onClick={() => approveRow(row.id)}
+                              disabled={!isAdmin || Boolean(draft) || Boolean(savingClassificationIds[row.id])}
+                              onClick={() => void approveRow(row)}
                               title={isAdmin ? "Aprovar esta classificação" : "Acesso restrito para visitantes"}
                             >
-                              Aprovar
+                              {savingClassificationIds[row.id] ? "Salvando..." : "Aprovar"}
                             </button>
                           )}
                           {draft ? (
@@ -800,7 +935,7 @@ export default function FailureClassificationPage() {
                               <button
                                 type="button"
                                 className="button classification-edit-button"
-                                onClick={() => saveEditing(row.id)}
+                                onClick={() => void saveEditing(row.id)}
                               >
                                 Salvar
                               </button>

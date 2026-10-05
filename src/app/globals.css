@@ -1886,12 +1886,12 @@ h1 {
   color: var(--brand-dark);
 }
 .classification-table-scroll {
-  overflow-x: auto;
+  overflow-x: hidden;
   width: 100%;
 }
 .classification-table {
   border-collapse: collapse;
-  min-width: 1320px;
+  min-width: 0;
   table-layout: fixed;
   text-align: left;
   width: 100%;
@@ -1915,35 +1915,39 @@ h1 {
 }
 .classification-table th:nth-child(1),
 .classification-table td:nth-child(1) {
-  width: 10%;
+  width: 8%;
 }
 .classification-table th:nth-child(2),
 .classification-table td:nth-child(2) {
-  width: 7%;
+  width: 5%;
 }
 .classification-table th:nth-child(3),
 .classification-table td:nth-child(3) {
-  width: 7%;
+  width: 6%;
 }
 .classification-table th:nth-child(4),
 .classification-table td:nth-child(4) {
-  width: 15%;
+  width: 10%;
 }
 .classification-table th:nth-child(5),
 .classification-table td:nth-child(5) {
-  width: 8%;
+  width: 6%;
 }
 .classification-table th:nth-child(6),
 .classification-table td:nth-child(6) {
-  width: 18%;
+  width: 16%;
 }
 .classification-table th:nth-child(7),
 .classification-table td:nth-child(7) {
-  width: 19%;
+  width: 17%;
 }
 .classification-table th:nth-child(8),
 .classification-table td:nth-child(8) {
-  width: 16%;
+  width: 17%;
+}
+.classification-table th:nth-child(9),
+.classification-table td:nth-child(9) {
+  width: 15%;
 }
 .classification-table td:first-child strong,
 .classification-table td:first-child span,
@@ -1963,7 +1967,8 @@ h1 {
   margin-top: 3px;
 }
 .classification-description {
-  min-width: 240px;
+  min-width: 0;
+  white-space: normal;
 }
 .classification-select {
   background: #fff;
@@ -2029,6 +2034,81 @@ h1 {
   font: inherit;
   font-size: 10px;
   padding: 8px 4px;
+}
+@media (max-width: 1360px) {
+  .classification-table-scroll {
+    box-sizing: border-box;
+    padding: 12px;
+  }
+  .classification-table,
+  .classification-table tbody,
+  .classification-table tr,
+  .classification-table td {
+    display: block;
+    width: 100%;
+  }
+  .classification-table thead {
+    clip: rect(0, 0, 0, 0);
+    clip-path: inset(50%);
+    height: 1px;
+    overflow: hidden;
+    position: absolute;
+    white-space: nowrap;
+    width: 1px;
+  }
+  .classification-table tbody {
+    display: grid;
+    gap: 12px;
+  }
+  .classification-table tr {
+    background: #fff;
+    border: 1px solid #eadfdb;
+    border-radius: 10px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    overflow: hidden;
+    width: auto;
+  }
+  .classification-table td {
+    align-items: start;
+    border-top: 1px solid #f0e7e4;
+    box-sizing: border-box;
+    display: grid;
+    gap: 10px;
+    grid-template-columns: minmax(78px, 30%) minmax(0, 1fr);
+    min-width: 0;
+    padding: 10px;
+    width: auto;
+  }
+  .classification-table td::before {
+    color: var(--muted);
+    content: attr(data-label);
+    font-size: 10px;
+    font-weight: 700;
+  }
+  .classification-table td:nth-child(6),
+  .classification-table td:nth-child(7),
+  .classification-table td:nth-child(8),
+  .classification-table td:nth-child(9) {
+    grid-column: 1 / -1;
+  }
+  .classification-table td:nth-child(6) {
+    grid-template-columns: 1fr;
+  }
+  .classification-description {
+    white-space: pre-wrap;
+  }
+}
+@media (max-width: 600px) {
+  .classification-table tr {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .classification-table td:nth-child(6),
+  .classification-table td:nth-child(7),
+  .classification-table td:nth-child(8),
+  .classification-table td:nth-child(9) {
+    grid-column: auto;
+  }
 }
 .classification-edit-stack {
   display: grid;
