@@ -8,7 +8,8 @@ export async function GET(
   { params }: { params: Promise<{ machine: string }> },
 ) {
   try {
-    const { machine } = await params;
+    const { machine: encodedMachine } = await params;
+    const machine = decodeURIComponent(encodedMachine);
     return NextResponse.json({
       machine,
       records: await getMachineStopDetails(machine),

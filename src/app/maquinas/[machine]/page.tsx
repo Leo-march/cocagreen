@@ -221,7 +221,8 @@ export default function MachineDetailsPage({
 }: {
   params: Promise<{ machine: string }>;
 }) {
-  const { machine: machineName } = use(params);
+  const { machine: encodedMachineName } = use(params);
+  const machineName = decodeURIComponent(encodedMachineName);
   return <MachineAnalytics key={machineName} machineName={machineName} />;
 }
 
@@ -267,6 +268,9 @@ function MachineAnalytics({ machineName }: { machineName: string }) {
   const summary = useMemo(() => summarizeRecords(records), [records]);
   const barData = summary.causeSummaries.slice(0, 10);
   const paretoData = summary.pareto.slice(0, 12);
+  const machineChartData = machineName.trim() && records.length
+    ? [{ name: machineName.trim(), occurrences: records.length }]
+    : [];
 
   async function exportCharts() {
     setIsExporting(true);
@@ -409,6 +413,27 @@ function MachineAnalytics({ machineName }: { machineName: string }) {
             aria-label="Gráficos de análise da máquina"
             ref={chartsRef}
           >
+            <article className="ops-panel machine-detail-chart-panel">
+              <div className="ops-panel-heading">
+                <div>
+                  <p className="ops-panel-kicker">CHAVE DA PARADA</p>
+                  <h2>Ocorrências por máquina</h2>
+                </div>
+                <span className="ops-panel-total">{records.length.toLocaleString("pt-BR")} registros</span>
+              </div>
+              <div className="machine-detail-chart machine-detail-bar-chart">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={machineChartData} margin={{ top: 12, right: 12, left: 0, bottom: 58 }}>
+                    <CartesianGrid stroke="#eadbd7" strokeDasharray="4 4" vertical={false} />
+                    <XAxis dataKey="name" angle={-28} textAnchor="end" interval={0} height={78} tick={{ fill: "#806d68", fontSize: 10 }} />
+                    <YAxis allowDecimals={false} tick={{ fill: "#806d68", fontSize: 11 }} />
+                    <Tooltip />
+                    <Bar dataKey="occurrences" name="Ocorrências" fill="#8f1820" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </article>
+
             <article className="ops-panel machine-detail-chart-panel">
               <div className="ops-panel-heading">
                 <div>
