@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Bar,
   CartesianGrid,
@@ -87,7 +87,10 @@ function buildParetoData(data: DashboardData, selectedLine: string) {
 export default function DashboardPage() {
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [loadError, setLoadError] = useState("");
+  const [pdfError, setPdfError] = useState("");
+  const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [analysisFilters, setAnalysisFilters] = useState<AnalysisFilters>(emptyAnalysisFilters);
+  const chartContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetch("/api/dashboard-data")
@@ -111,6 +114,45 @@ export default function DashboardPage() {
   );
   const hasChart = chart.data.length > 0;
 
+  async function exportParetoPdf() {
+    const chartElement = chartContainerRef.current;
+    if (!chartElement) return;
+
+    setPdfError("");
+    setIsExportingPdf(true);
+    try {
+      const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
+        import("html2canvas"),
+        import("jspdf"),
+      ]);
+      const canvas = await html2canvas(chartElement, {
+        backgroundColor: "#ffffff",
+        scale: 2,
+        useCORS: true,
+      });
+      const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+      const margin = 12;
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const maxWidth = pageWidth - margin * 2;
+      const maxHeight = pageHeight - 34;
+      const scale = Math.min(maxWidth / canvas.width, maxHeight / canvas.height);
+      const imageWidth = canvas.width * scale;
+      const imageHeight = canvas.height * scale;
+
+      pdf.setFontSize(16);
+      pdf.text("Pareto de falhas", margin, 14);
+      pdf.setFontSize(9);
+      pdf.text(`Gerado em ${new Date().toLocaleDateString("pt-BR")}`, margin, 20);
+      pdf.addImage(canvas.toDataURL("image/png"), "PNG", margin, 26, imageWidth, imageHeight);
+      pdf.save(`pareto-falhas-${new Date().toISOString().slice(0, 10)}.pdf`);
+    } catch {
+      setPdfError("Não foi possível gerar o PDF. Tente novamente.");
+    } finally {
+      setIsExportingPdf(false);
+    }
+  }
+
   if (!hasChart) {
     return (
       <div className="dashboard-page dashboard-with-brand-bg analysis-dashboard-page">
@@ -119,7 +161,12 @@ export default function DashboardPage() {
             <h1>Análises de Manutenção</h1>
             <p className="page-subtitle">Transforme o histórico da operação em decisões mais precisas.</p>
           </div>
-          <Link href="/inserirdados" className="button button-primary">Inserir dados</Link>
+          <div className="analysis-page-actions">
+            <Link href="/inserirdados" className="button button-primary">Inserir dados</Link>
+            <button type="button" className="button button-secondary" disabled>
+              Exportar PDF
+            </button>
+          </div>
         </header>
         <section className="dashboard-chart-card pareto-card">
           <AnalysisTabs active="pareto" data={dashboardData} filters={analysisFilters} onApplyFilters={setAnalysisFilters} />
@@ -138,8 +185,19 @@ export default function DashboardPage() {
           <h1>Análises de Manutenção</h1>
           <p className="page-subtitle">Transforme o histórico da operação em decisões mais precisas.</p>
         </div>
-        <Link href="/inserirdados" className="button button-primary">Inserir dados</Link>
+        <div className="analysis-page-actions">
+          <Link href="/inserirdados" className="button button-primary">Inserir dados</Link>
+          <button
+            type="button"
+            className="button button-secondary"
+            onClick={() => void exportParetoPdf()}
+            disabled={isExportingPdf}
+          >
+            {isExportingPdf ? "Gerando PDF..." : "Exportar PDF"}
+          </button>
+        </div>
       </header>
+      {pdfError && <p className="pdf-export-error" role="alert">{pdfError}</p>}
 
       <section className="dashboard-chart-card pareto-card" aria-labelledby="chart-title">
           <AnalysisTabs active="pareto" data={dashboardData} filters={analysisFilters} onApplyFilters={setAnalysisFilters} />
@@ -152,7 +210,7 @@ export default function DashboardPage() {
             <Link href="/tabelas" className="button button-secondary">Ver tabela</Link>
           </div>
           <div className="pareto-layout">
-            <div className="chart-container pareto-chart-container">
+            <div className="chart-container pareto-chart-container" ref={chartContainerRef}>
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={chart.data} margin={{ top: 16, right: 16, left: 0, bottom: 45 }}>
                   <CartesianGrid stroke="#eadbd7" strokeDasharray="4 4" vertical={false} />

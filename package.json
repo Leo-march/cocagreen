@@ -11,6 +11,8 @@
   "dependencies": {
     "drizzle-kit": "^0.31.10",
     "drizzle-orm": "^0.45.2",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^4.2.1",
     "mysql2": "^3.24.4",
     "next": "16.3.5",
     "next-auth": "^4.24.15",

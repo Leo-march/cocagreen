@@ -729,6 +729,31 @@ body {
   justify-content: space-between;
   gap: 32px;
 }
+.analysis-page-actions {
+  align-items: center;
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.analysis-page-actions .button {
+  margin-top: 0;
+}
+.analysis-page-actions button.button {
+  border: 0;
+  cursor: pointer;
+  font-family: inherit;
+  line-height: inherit;
+}
+.analysis-page-actions button.button:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+.pdf-export-error {
+  color: var(--brand-dark);
+  font-size: 13px;
+  margin: 12px 0 0;
+}
 .eyebrow {
   color: var(--brand-dark);
   font-size: 11px;
@@ -3730,6 +3755,12 @@ h1 {
     align-items: flex-start;
     flex-direction: column;
     gap: 14px;
+  }
+  .analysis-page-actions {
+    width: 100%;
+  }
+  .analysis-page-actions .button {
+    flex: 1 1 150px;
   }
   .ops-dashboard-filters,
   .ops-dashboard-filters label,
