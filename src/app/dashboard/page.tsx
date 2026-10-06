@@ -135,9 +135,7 @@ function buildSummary(data: DashboardData): DashboardSummary | null {
     allOccurrences[0].date,
   );
   const month = new Date(latestDate.getFullYear(), latestDate.getMonth(), 1);
-  const occurrences = allOccurrences
-    .filter(({ date }) => date.getFullYear() === month.getFullYear() && date.getMonth() === month.getMonth())
-    .sort((first, second) => second.date.getTime() - first.date.getTime());
+  const occurrences = allOccurrences.sort((first, second) => second.date.getTime() - first.date.getTime());
   const totalMinutesValues = occurrences.flatMap(({ minutes }) => minutes === null ? [] : [minutes]);
   const totalMinutes = totalMinutesValues.length
     ? totalMinutesValues.reduce((sum, minutes) => sum + minutes, 0)
@@ -215,6 +213,8 @@ export default function DashboardPage() {
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [loadError, setLoadError] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [selectedLine, setSelectedLine] = useState("all");
+  const [selectedPeriod, setSelectedPeriod] = useState<"week" | "month">("week");
 
   useEffect(() => {
     const controller = new AbortController();
@@ -234,24 +234,64 @@ export default function DashboardPage() {
     return () => controller.abort();
   }, []);
 
+  const lineColumn = dashboardData ? findPopulatedColumn(dashboardData, /linha|line/) : undefined;
+  const dateColumn = dashboardData ? findPopulatedColumn(dashboardData, /data|date|inicio|abertura|ocorrencia/) : undefined;
+  const lineOptions = useMemo(
+    () => dashboardData && lineColumn
+      ? Array.from(new Set(dashboardData.rows.map((row) => String(row[lineColumn] ?? "").trim()).filter(Boolean))).sort()
+      : [],
+    [dashboardData, lineColumn],
+  );
+  const filteredData = useMemo(() => {
+    if (!dashboardData || !dateColumn) return dashboardData;
+    const dates = dashboardData.rows.map((row) => parseDate(row[dateColumn])).filter((date): date is Date => date !== null);
+    const latestDate = dates.reduce<Date | null>((latest, date) => !latest || date > latest ? date : latest, null);
+    if (!latestDate) return dashboardData;
+    const periodDays = selectedPeriod === "week" ? 7 : 30;
+    const startDate = selectedPeriod === "month"
+      ? new Date(latestDate.getFullYear(), latestDate.getMonth(), 1)
+      : new Date(latestDate.getFullYear(), latestDate.getMonth(), latestDate.getDate() - periodDays + 1);
+    return {
+      ...dashboardData,
+      rows: dashboardData.rows.filter((row) => {
+        const date = parseDate(row[dateColumn]);
+        const matchesLine = selectedLine === "all" || String(row[lineColumn ?? ""] ?? "").trim() === selectedLine;
+        return matchesLine && date !== null && date >= startDate && date <= latestDate;
+      }),
+    };
+  }, [dashboardData, dateColumn, lineColumn, selectedLine, selectedPeriod]);
   const summary = useMemo(
-    () => dashboardData ? buildSummary(dashboardData) : null,
-    [dashboardData],
+    () => filteredData ? buildSummary(filteredData) : null,
+    [filteredData],
   );
 
   return (
     <div className="dashboard-page dashboard-with-brand-bg ops-dashboard-page">
       <header className="ops-dashboard-header">
         <div>
-          <p className="eyebrow">CENTRO DE OPERAÇÕES</p>
-          <h1>Dashboard</h1>
+          <h1>Painel de Manutenção</h1>
           <p className="page-subtitle">
             {summary
-              ? `Indicadores do último mês com registros: ${summary.month.toLocaleDateString("pt-BR", { month: "long", year: "numeric" })}`
+              ? `Visão geral da operação · ${summary.month.toLocaleDateString("pt-BR", { month: "long", year: "numeric" })}`
               : "Visão geral de falhas e tempo de parada."}
           </p>
         </div>
-        <Link href="/inserirdados" className="button button-primary">Inserir dados</Link>
+        <div className="ops-dashboard-filters" aria-label="Filtros do painel">
+          <label>
+            <span className="visually-hidden">Linha</span>
+            <select value={selectedLine} onChange={(event) => setSelectedLine(event.target.value)}>
+              <option value="all">Todas as linhas</option>
+              {lineOptions.map((line) => <option key={line} value={line}>{line}</option>)}
+            </select>
+          </label>
+          <label>
+            <span className="visually-hidden">Período</span>
+            <select value={selectedPeriod} onChange={(event) => setSelectedPeriod(event.target.value as "week" | "month")}>
+              <option value="week">Esta semana</option>
+              <option value="month">Este mês</option>
+            </select>
+          </label>
+        </div>
       </header>
 
       {isLoading ? (
@@ -267,10 +307,12 @@ export default function DashboardPage() {
           <p>Importe uma planilha para acompanhar falhas, tempos de parada e equipamentos afetados.</p>
           <Link href="/inserirdados" className="button button-primary">Importar planilha</Link>
         </div>
-      ) : !summary ? (
+      ) : !summary || !summary.occurrences.length ? (
         <div className="ops-dashboard-message">
-          <h2>Não foi possível identificar as datas</h2>
-          <p>Confira se a planilha contém uma coluna de data reconhecível para gerar os indicadores mensais.</p>
+          <h2>{summary ? "Sem ocorrências neste período" : "Não foi possível identificar as datas"}</h2>
+          <p>{summary
+            ? "Altere os filtros para consultar outro recorte da operação."
+            : "Confira se a planilha contém uma coluna de data reconhecível para gerar os indicadores."}</p>
           <Link href="/tabelas">Conferir registros</Link>
         </div>
       ) : (

@@ -18,6 +18,8 @@ from train_failure_classifier import (
 
 
 PREDICTED_COLUMN = "Classificação prevista"
+CONFIDENCE_COLUMN = "Confiança da predição"
+REVIEW_COLUMN = "Revisar manualmente"
 
 
 def make_sheet_name(name: str, used_names: set[str]) -> str:
@@ -45,6 +47,7 @@ def predict_workbook(input_path: Path, output_path: Path, model_path: Path) -> i
     model_bundle = joblib.load(model_path)
     pipeline = model_bundle["pipeline"]
     label_lookup = model_bundle["label_lookup"]
+    confidence_threshold = float(model_bundle.get("confidence_review_threshold", 0.60))
     workbook = pd.ExcelFile(input_path)
     sheets: list[tuple[str, pd.DataFrame]] = []
     total_rows = 0
@@ -57,16 +60,29 @@ def predict_workbook(input_path: Path, output_path: Path, model_path: Path) -> i
         normalized = observations.map(clean_observation)
         valid = normalized.ne("")
         predicted = pd.Series("Observação vazia — não classificada", index=source.index, dtype=str)
+        confidence = pd.Series(float("nan"), index=source.index, dtype=float)
+        review = pd.Series("Sem observação", index=source.index, dtype=str)
         if valid.any():
-            labels = pipeline.predict(normalized.loc[valid])
+            valid_text = normalized.loc[valid]
+            labels = pipeline.predict(valid_text)
+            probabilities = pipeline.predict_proba(valid_text)
+            confidence.loc[valid] = probabilities.max(axis=1)
+            review.loc[valid] = confidence.loc[valid].lt(confidence_threshold).map(
+                {True: "Revisar manualmente", False: "Confiança adequada"}
+            )
             predicted.loc[valid] = [label_lookup[label] for label in labels]
 
-        destination_column = PREDICTED_COLUMN
-        suffix = 2
-        while destination_column in source.columns:
-            destination_column = f"{PREDICTED_COLUMN} {suffix}"
-            suffix += 1
-        source[destination_column] = predicted
+        for base_column, values in (
+            (PREDICTED_COLUMN, predicted),
+            (CONFIDENCE_COLUMN, confidence),
+            (REVIEW_COLUMN, review),
+        ):
+            destination_column = base_column
+            suffix = 2
+            while destination_column in source.columns:
+                destination_column = f"{base_column} {suffix}"
+                suffix += 1
+            source[destination_column] = values
         sheets.append((make_sheet_name(sheet_name, used_sheet_names), source))
         total_rows += len(source)
 
@@ -77,6 +93,11 @@ def predict_workbook(input_path: Path, output_path: Path, model_path: Path) -> i
     with pd.ExcelWriter(output_path, engine="openpyxl") as writer:
         for sheet_name, frame in sheets:
             frame.to_excel(writer, sheet_name=sheet_name, index=False)
+            worksheet = writer.sheets[sheet_name]
+            for column_index, column in enumerate(frame.columns, start=1):
+                if str(column).startswith(CONFIDENCE_COLUMN):
+                    for row_index in range(2, len(frame) + 2):
+                        worksheet.cell(row=row_index, column=column_index).number_format = "0.0%"
     return total_rows
 
 

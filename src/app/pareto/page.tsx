@@ -46,8 +46,9 @@ function getDateValue(value: unknown) {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
-function buildParetoData(data: DashboardData, period: PeriodFilter, selectedLine: string) {
+function buildParetoData(data: DashboardData, period: PeriodFilter, selectedLine: string, selectedShift: string) {
   const lineColumn = findLineColumn(data.columns);
+  const shiftColumn = data.columns.find((column) => /turno|shift/.test(column.toLowerCase()));
   const equipmentColumn = findEquipmentColumn(data.columns);
   const minutesColumn = findMinutesColumn(data.columns);
   const dateColumn = findDateColumn(data.columns);
@@ -63,15 +64,17 @@ function buildParetoData(data: DashboardData, period: PeriodFilter, selectedLine
     const rowDate = getDateValue(row[dateColumn]);
     return !startDate || (rowDate && rowDate >= startDate);
   });
-  const hasSelectedLine = selectedLine === "all" || periodRows.some((row) => String(row[lineColumn] ?? "").trim() === selectedLine);
-  const rowsToAnalyze = periodRows.length > 0 && hasSelectedLine ? periodRows : data.rows;
+  const rowsToAnalyze = periodRows.filter((row) => (
+    (selectedLine === "all" || String(row[lineColumn] ?? "").trim() === selectedLine)
+    && (selectedShift === "all" || !shiftColumn || String(row[shiftColumn] ?? "").trim() === selectedShift)
+  ));
   const grouped = new Map<string, { minutes: number; occurrences: number }>();
   rowsToAnalyze.forEach((row) => {
     const line = String(row[lineColumn] ?? "").trim();
     const equipment = String(row[equipmentColumn] ?? "").trim();
     const rowDate = getDateValue(row[dateColumn]);
     const minutes = Number(String(row[minutesColumn] ?? "").replace(",", "."));
-    if (line && equipment && rowDate && (selectedLine === "all" || line === selectedLine) && !Number.isNaN(minutes)) {
+    if (line && equipment && rowDate && !Number.isNaN(minutes)) {
       const label = selectedLine === "all" ? line : `${line} — ${equipment}`;
       const current = grouped.get(label) || { minutes: 0, occurrences: 0 };
       grouped.set(label, { minutes: current.minutes + minutes, occurrences: current.occurrences + 1 });
@@ -101,6 +104,7 @@ function buildParetoData(data: DashboardData, period: PeriodFilter, selectedLine
     equipmentColumn,
     minutesColumn,
     dateColumn,
+    shiftColumn,
   };
 }
 
@@ -109,6 +113,7 @@ export default function DashboardPage() {
   const [loadError, setLoadError] = useState("");
   const [period, setPeriod] = useState<PeriodFilter>("month");
   const [selectedLine, setSelectedLine] = useState("all");
+  const [selectedShift, setSelectedShift] = useState("all");
 
   useEffect(() => {
     fetch("/api/dashboard-data")
@@ -126,7 +131,19 @@ export default function DashboardPage() {
     if (!lineColumn) return [];
     return Array.from(new Set(dashboardData.rows.map((row) => String(row[lineColumn] ?? "").trim()).filter(Boolean))).sort();
   }, [dashboardData]);
-  const chart = useMemo(() => dashboardData ? buildParetoData(dashboardData, period, selectedLine) : { data: [], lineColumn: undefined, equipmentColumn: undefined, minutesColumn: undefined }, [dashboardData, period, selectedLine]);
+  const shiftOptions = useMemo(() => {
+    if (!dashboardData) return [];
+    const shiftColumn = dashboardData.columns.find((column) => /turno|shift/.test(column.toLowerCase()));
+    return shiftColumn
+      ? Array.from(new Set(dashboardData.rows.map((row) => String(row[shiftColumn] ?? "").trim()).filter(Boolean))).sort()
+      : [];
+  }, [dashboardData]);
+  const chart = useMemo(
+    () => dashboardData
+      ? buildParetoData(dashboardData, period, selectedLine, selectedShift)
+      : { data: [], lineColumn: undefined, equipmentColumn: undefined, minutesColumn: undefined },
+    [dashboardData, period, selectedLine, selectedShift],
+  );
   const hasChart = chart.data.length > 0;
 
   if (!hasChart) {
@@ -137,9 +154,8 @@ export default function DashboardPage() {
     <div className="dashboard-page dashboard-with-brand-bg analysis-dashboard-page">
       <header className="page-header">
         <div>
-          <p className="eyebrow">PARETO</p>
-          <h1>Análises</h1>
-          <p className="page-subtitle">Indicadores de manutenção e falhas</p>
+          <h1>Análises de Manutenção</h1>
+          <p className="page-subtitle">Transforme o histórico da operação em decisões mais precisas.</p>
         </div>
         <Link href="/inserirdados" className="button button-primary">Inserir dados</Link>
       </header>
@@ -158,6 +174,12 @@ export default function DashboardPage() {
               <select value={selectedLine} onChange={(event) => setSelectedLine(event.target.value)}>
                 <option value="all">Todas as linhas</option>
                 {lineOptions.map((line) => <option key={line} value={line}>{line}</option>)}
+              </select>
+            </label>
+            <label>Turno:
+              <select value={selectedShift} onChange={(event) => setSelectedShift(event.target.value)}>
+                <option value="all">Todos os turnos</option>
+                {shiftOptions.map((shift) => <option key={shift} value={shift}>{shift}</option>)}
               </select>
             </label>
             <span>Analisar por: <strong>{selectedLine === "all" ? "Linha" : "Equipamento"}</strong></span>

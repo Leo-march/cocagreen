@@ -10,19 +10,31 @@ export default function LoginPage() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [isSigningIn, setIsSigningIn] = useState(false);
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
 
     const normalizedName = username.trim();
-    if (normalizedName.toLowerCase() === "talita" && password === "1234") {
-      setLoggedInUser("Talita", "admin");
+    setIsSigningIn(true);
+    try {
+      const response = await fetch("/api/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: normalizedName, password }),
+      });
+      const payload = await response.json() as { username?: string; error?: string };
+      if (!response.ok || !payload.username) {
+        throw new Error(payload.error || "Não foi possível validar as credenciais administrativas.");
+      }
+      setLoggedInUser(payload.username, "admin");
       router.push("/dashboard");
-      return;
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : "Não foi possível iniciar a sessão.");
+    } finally {
+      setIsSigningIn(false);
     }
-
-    setError("Credenciais inválidas. Use Talita / 1234 ou entre como visitante.");
   }
 
   function handleVisitorAccess() {
@@ -41,12 +53,11 @@ export default function LoginPage() {
           height={96}
           priority
         />
-        <p className="eyebrow">COCA GREEN</p>
         <h1 id="login-title">Acesso ao sistema</h1>
-        <p className="page-subtitle">Entre como visitante para visualizar ou use o cadastro da Talita para gerenciar.</p>
+        <p className="page-subtitle">Entre como visitante para visualizar o sistema ou informe suas credenciais para acessar como administradora.</p>
 
         <div className="login-role-switch" aria-label="Tipo de acesso">
-          <button type="button" className="login-role-button login-role-button-active" onClick={handleVisitorAccess}>
+          <button type="button" className="button button-primary login-submit" onClick={handleVisitorAccess}>
             Entrar como visitante
           </button>
         </div>
@@ -76,8 +87,8 @@ export default function LoginPage() {
             />
           </label>
           {error && <p className="login-error" role="alert">{error}</p>}
-          <button className="button button-primary login-submit" type="submit">
-            Entrar com cadastro
+          <button className="button button-primary login-submit" type="submit" disabled={isSigningIn}>
+            {isSigningIn ? "Validando acesso..." : "Entrar"}
           </button>
         </form>
       </section>
