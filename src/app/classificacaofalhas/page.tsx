@@ -758,7 +758,6 @@ export default function FailureClassificationPage() {
         {storageWarning && <p className="classification-storage-warning" role="status">{storageWarning}</p>}
         {actionError && <p className="classification-action-error" role="alert">{actionError}</p>}
         <div className="classification-table-heading">
-          <h2 id="classification-table-title">Chamados de manutenção</h2>
           <div className="classification-tabs" role="tablist" aria-label="Status da classificação">
             {loggedUser && (
               <button

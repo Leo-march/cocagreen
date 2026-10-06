@@ -1293,6 +1293,35 @@ h1 {
 .table-empty-state {
   gap: 84px;
 }
+.dashboard-with-brand-bg.tables-page {
+  padding-left: clamp(16px, 2vw, 32px);
+  padding-right: clamp(16px, 2vw, 32px);
+}
+.table-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.tables-preview {
+  max-height: none;
+  overflow: visible;
+}
+.tables-preview .preview-scroll {
+  overflow-x: auto;
+}
+.tables-preview table {
+  min-width: 100%;
+  table-layout: auto;
+  width: max-content;
+}
+.tables-preview th,
+.tables-preview td {
+  max-width: 320px;
+  min-width: 140px;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
 .table-visual {
   height: 290px;
   min-width: 220px;
