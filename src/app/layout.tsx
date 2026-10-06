@@ -1,33 +1,28 @@
-import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
-import "./globals.css";
-import { AppShell } from "@/components/app-shell";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+import BootstrapState from "@/components/ui/BootstrapState"
+import { getPrototypeSnapshot } from "@/services/maintenanceService"
+import type { Metadata } from "next"
+import type { ReactNode } from "react"
+import "./globals.css"
 
 export const metadata: Metadata = {
-  title: "Coca Green",
-  description: "Acompanhe seus indicadores de sustentabilidade.",
-};
+  title: "Manutenção Industrial",
+  description: "Gestão de manutenção industrial · Unidade Marília",
+}
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({
+  children,
+}: {
+  children: ReactNode
+}) {
+  const snapshot = await getPrototypeSnapshot()
+
   return (
-    <html
-      lang="pt-BR"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
-    >
-      
+    <html lang="pt-BR">
       <body>
-        <AppShell>{children}</AppShell>
+        <BootstrapState snapshot={snapshot}>
+          {children}
+        </BootstrapState>
       </body>
     </html>
-  );
+  )
 }

@@ -1,7 +1,7 @@
 import Badge from "@/components/ui/Badge"
 import { type Order } from "@/types/maintenance"
 import { ChevronRight } from "lucide-react"
-import { Link } from "react-router"
+import Link from "next/link"
 
 export default function OrderTable({
   orders,
@@ -56,7 +56,7 @@ export default function OrderTable({
                   </button>
                 ) : (
                   <Link
-                    to="/ordens"
+                    href="/ordens"
                     className="font-semibold text-accent-foreground"
                   >
                     #{order.id}
@@ -82,7 +82,7 @@ export default function OrderTable({
               <td className="px-5 py-4">
                 {compact ? (
                   <Link
-                    to="/ordens"
+                    href="/ordens"
                     aria-label={`Ver ordem ${order.id}`}
                     className="inline-flex p-2 text-[#596270] hover:text-accent-foreground"
                   >
