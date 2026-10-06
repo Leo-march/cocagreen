@@ -2184,6 +2184,11 @@ h1 {
   flex: 0 0 auto;
   margin-top: 0;
 }
+.machine-detail-header button.button {
+  border: 0;
+  font-family: inherit;
+  line-height: inherit;
+}
 .machine-detail-actions {
   align-items: center;
   display: flex;
