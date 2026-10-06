@@ -15,7 +15,7 @@ import {
   YAxis,
 } from "recharts";
 import { AnalysisTabs } from "@/components/analysis-tabs";
-import { EmptyDashboardPage } from "@/components/empty-dashboard";
+import { emptyAnalysisFilters, filterAnalysisDataset, type AnalysisFilters } from "@/lib/analysis-filters";
 
 type DashboardData = {
   columns: string[];
@@ -230,6 +230,7 @@ export default function OtherChartsPage() {
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [loadError, setLoadError] = useState("");
   const [chartType, setChartType] = useState<ChartType>("criticality");
+  const [analysisFilters, setAnalysisFilters] = useState<AnalysisFilters>(emptyAnalysisFilters);
 
   useEffect(() => {
     fetch("/api/dashboard-data")
@@ -241,12 +242,12 @@ export default function OtherChartsPage() {
       .catch((error: unknown) => setLoadError(error instanceof Error ? error.message : "Não foi possível carregar os dados."));
   }, []);
 
-  const graphs = useMemo(() => dashboardData ? buildGraphData(dashboardData) : null, [dashboardData]);
+  const filteredData = useMemo(
+    () => filterAnalysisDataset(dashboardData, analysisFilters),
+    [dashboardData, analysisFilters],
+  );
+  const graphs = useMemo(() => filteredData ? buildGraphData(filteredData) : null, [filteredData]);
   const selectedOption = chartOptions.find((option) => option.value === chartType) || chartOptions[0];
-
-  if (!graphs?.monthly.some((point) => point.actual > 0)) {
-    return <EmptyDashboardPage message={loadError || "Insira uma planilha com colunas de equipamento, data e minutos parados para visualizar os gráficos."} />;
-  }
 
   return (
     <div className="dashboard-page dashboard-with-brand-bg analysis-dashboard-page">
@@ -259,7 +260,7 @@ export default function OtherChartsPage() {
       </header>
 
       <section className="dashboard-chart-card pareto-card" aria-labelledby="other-charts-title">
-        <AnalysisTabs active="other" />
+        <AnalysisTabs active="other" data={dashboardData} filters={analysisFilters} onApplyFilters={setAnalysisFilters} />
         <div className="analysis-filters" aria-label="Seleção do gráfico">
           <label htmlFor="chart-type">Gráfico:
             <select id="chart-type" value={chartType} onChange={(event) => setChartType(event.target.value as ChartType)}>

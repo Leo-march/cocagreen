@@ -14,22 +14,15 @@ import {
   YAxis,
 } from "recharts";
 import { AnalysisTabs } from "@/components/analysis-tabs";
-import { EmptyDashboardPage } from "@/components/empty-dashboard";
+import { emptyAnalysisFilters, filterAnalysisDataset, type AnalysisFilters } from "@/lib/analysis-filters";
 
 type DashboardData = {
   columns: string[];
   rows: Record<string, unknown>[];
 };
 
-type PeriodFilter = "month" | "week" | "day";
-
 const columnByPattern = (columns: string[], pattern: RegExp) =>
   columns.find((column) => pattern.test(column.toLowerCase()));
-
-function parseDate(value: unknown) {
-  const date = new Date(String(value ?? "").replace(" ", "T"));
-  return Number.isNaN(date.getTime()) ? null : date;
-}
 
 function getLogDomain(values: number[]) {
   const positive = values.filter((value) => Number.isFinite(value) && value > 0);
@@ -41,7 +34,7 @@ function getLogDomain(values: number[]) {
   return [10 ** minPower, 10 ** maxPower] as [number, number];
 }
 
-function buildJackKnifeData(data: DashboardData, period: PeriodFilter, selectedLine: string) {
+function buildJackKnifeData(data: DashboardData) {
   const lineColumn = columnByPattern(data.columns, /linha|line/);
   const equipmentColumn = columnByPattern(data.columns, /chave.*parada|equipamento|equipment|descripcion.*equipo/);
   const failureColumn = columnByPattern(data.columns, /observa|subchave|chave_1|tipo.*parada|failure|cause/);
@@ -52,27 +45,13 @@ function buildJackKnifeData(data: DashboardData, period: PeriodFilter, selectedL
     return { points: [], frequencyLimit: 0, mttrLimit: 0, domainX: [0.1, 10] as [number, number], domainY: [0.1, 10] as [number, number] };
   }
 
-  const dates = data.rows.map((row) => parseDate(row[dateColumn])).filter((date): date is Date => date !== null);
-  const latestDate = dates.reduce((latest, current) => current > latest ? current : latest, dates[0]);
-  const days = period === "month" ? 30 : period === "week" ? 7 : 1;
-  const fromDate = latestDate ? new Date(latestDate.getTime() - (days - 1) * 86400000) : null;
-  const periodRows = data.rows.filter((row) => {
-    const date = parseDate(row[dateColumn]);
-    return date && (!fromDate || date >= fromDate);
-  });
-  const lineExistsInPeriod = selectedLine === "all"
-    || periodRows.some((row) => String(row[lineColumn] ?? "").trim() === selectedLine);
-  const rowsToAnalyze = periodRows.length && lineExistsInPeriod ? periodRows : data.rows;
-
   const grouped = new Map<string, { equipment: string; failure: string; frequency: number; totalMinutes: number; machines: Set<string> }>();
-  rowsToAnalyze.forEach((row) => {
+  data.rows.forEach((row) => {
     const line = String(row[lineColumn] ?? "").trim();
     const equipment = String(row[equipmentColumn] ?? "").trim();
     const failure = String(row[failureColumn] ?? "").trim();
     const minutes = Number(String(row[minutesColumn] ?? "").replace(",", "."));
     if (!line || !equipment || !failure || !Number.isFinite(minutes) || minutes <= 0) return;
-    if (selectedLine !== "all" && line !== selectedLine) return;
-
     const groupLabel = `${equipment} — ${failure}`;
     const machineId = `${line} — ${equipment}`;
     const current = grouped.get(groupLabel) || { equipment, failure, frequency: 0, totalMinutes: 0, machines: new Set<string>() };
@@ -112,8 +91,7 @@ function buildJackKnifeData(data: DashboardData, period: PeriodFilter, selectedL
 export default function JackKnifePage() {
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [loadError, setLoadError] = useState("");
-  const [period, setPeriod] = useState<PeriodFilter>("month");
-  const [selectedLine, setSelectedLine] = useState("all");
+  const [analysisFilters, setAnalysisFilters] = useState<AnalysisFilters>(emptyAnalysisFilters);
 
   useEffect(() => {
     fetch("/api/dashboard-data")
@@ -125,18 +103,16 @@ export default function JackKnifePage() {
       .catch((error: unknown) => setLoadError(error instanceof Error ? error.message : "Não foi possível carregar os dados."));
   }, []);
 
-  const lineOptions = useMemo(() => {
-    if (!dashboardData) return [];
-    const lineColumn = columnByPattern(dashboardData.columns, /linha|line/);
-    if (!lineColumn) return [];
-    return Array.from(new Set(dashboardData.rows.map((row) => String(row[lineColumn] ?? "").trim()).filter(Boolean))).sort();
-  }, [dashboardData]);
+  const filteredData = useMemo(
+    () => filterAnalysisDataset(dashboardData, analysisFilters),
+    [dashboardData, analysisFilters],
+  );
 
   const chart = useMemo(
-    () => dashboardData
-      ? buildJackKnifeData(dashboardData, period, selectedLine)
+    () => filteredData
+      ? buildJackKnifeData(filteredData)
       : { points: [], frequencyLimit: 0, mttrLimit: 0, domainX: [0.1, 10] as [number, number], domainY: [0.1, 10] as [number, number] },
-    [dashboardData, period, selectedLine],
+    [filteredData],
   );
 
   const categoryColors: Record<string, string> = {
@@ -146,10 +122,6 @@ export default function JackKnifePage() {
     Conforto: "#806d68",
   };
   const criticalCount = chart.points.filter((point) => point.category === "Crítico-crônico").length;
-
-  if (!chart.points.length) {
-    return <EmptyDashboardPage message={loadError || "Insira uma planilha com colunas de linha, equipamento, descrição da falha, data e minutos parados para visualizar o Jack–Knife."} />;
-  }
 
   return (
     <div className="dashboard-page dashboard-with-brand-bg analysis-dashboard-page">
@@ -163,23 +135,7 @@ export default function JackKnifePage() {
       </header>
 
       <section className="dashboard-chart-card pareto-card jackknife-card" aria-labelledby="jackknife-title">
-        <AnalysisTabs active="jackknife" />
-        <div className="analysis-filters" aria-label="Filtros da análise">
-          <label>Período:
-            <select value={period} onChange={(event) => setPeriod(event.target.value as PeriodFilter)}>
-              <option value="month">Mês</option>
-              <option value="week">Semana</option>
-              <option value="day">Dia</option>
-            </select>
-          </label>
-          <label>Setor:
-            <select value={selectedLine} onChange={(event) => setSelectedLine(event.target.value)}>
-              <option value="all">Todas as linhas</option>
-              {lineOptions.map((line) => <option key={line} value={line}>{line}</option>)}
-            </select>
-          </label>
-          <span>Analisar por: <strong>{selectedLine === "all" ? "Equipamento/falha" : selectedLine}</strong></span>
-        </div>
+        <AnalysisTabs active="jackknife" data={dashboardData} filters={analysisFilters} onApplyFilters={setAnalysisFilters} />
 
         <div className="chart-heading jackknife-chart-heading">
           <div>

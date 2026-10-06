@@ -15,7 +15,7 @@ import {
   YAxis,
 } from "recharts";
 import { AnalysisTabs } from "@/components/analysis-tabs";
-import { EmptyDashboardPage } from "@/components/empty-dashboard";
+import { emptyAnalysisFilters, filterAnalysisDataset, type AnalysisFilters } from "@/lib/analysis-filters";
 
 type DashboardData = {
   tableName: string;
@@ -23,22 +23,12 @@ type DashboardData = {
   rows: Record<string, unknown>[];
 };
 
-type PeriodFilter = "month" | "week" | "day";
-
 function findEquipmentColumn(columns: string[]) {
   return columns.find((column) => /equipamento|chave.*parada|falha|equipment/.test(column.toLowerCase()));
 }
 
-function findLineColumn(columns: string[]) {
-  return columns.find((column) => /linha|line/.test(column.toLowerCase()));
-}
-
 function findMinutesColumn(columns: string[]) {
   return columns.find((column) => /minuto.*parada|total.*minuto|tempo|minute|duration/.test(column.toLowerCase()));
-}
-
-function findDateColumn(columns: string[]) {
-  return columns.find((column) => /data|date|inicio|início/.test(column.toLowerCase()));
 }
 
 function getDateValue(value: unknown) {
@@ -46,30 +36,17 @@ function getDateValue(value: unknown) {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
-function buildParetoData(data: DashboardData, period: PeriodFilter, selectedLine: string, selectedShift: string) {
-  const lineColumn = findLineColumn(data.columns);
-  const shiftColumn = data.columns.find((column) => /turno|shift/.test(column.toLowerCase()));
+function buildParetoData(data: DashboardData, selectedLine: string) {
+  const lineColumn = data.columns.find((column) => /linha|line/.test(column.toLowerCase()));
   const equipmentColumn = findEquipmentColumn(data.columns);
   const minutesColumn = findMinutesColumn(data.columns);
-  const dateColumn = findDateColumn(data.columns);
+  const dateColumn = data.columns.find((column) => /data|date|inicio|início/.test(column.toLowerCase()));
   if (!lineColumn || !equipmentColumn || !minutesColumn || !dateColumn) {
     return { data: [], lineColumn, equipmentColumn, minutesColumn };
   }
 
-  const dates = data.rows.map((row) => getDateValue(row[dateColumn])).filter((date): date is Date => date !== null);
-  const latestDate = dates.reduce((latest, date) => date > latest ? date : latest, dates[0]);
-  const periodDays = period === "month" ? 30 : period === "week" ? 7 : 1;
-  const startDate = latestDate ? new Date(latestDate.getTime() - (periodDays - 1) * 86400000) : null;
-  const periodRows = data.rows.filter((row) => {
-    const rowDate = getDateValue(row[dateColumn]);
-    return !startDate || (rowDate && rowDate >= startDate);
-  });
-  const rowsToAnalyze = periodRows.filter((row) => (
-    (selectedLine === "all" || String(row[lineColumn] ?? "").trim() === selectedLine)
-    && (selectedShift === "all" || !shiftColumn || String(row[shiftColumn] ?? "").trim() === selectedShift)
-  ));
   const grouped = new Map<string, { minutes: number; occurrences: number }>();
-  rowsToAnalyze.forEach((row) => {
+  data.rows.forEach((row) => {
     const line = String(row[lineColumn] ?? "").trim();
     const equipment = String(row[equipmentColumn] ?? "").trim();
     const rowDate = getDateValue(row[dateColumn]);
@@ -104,16 +81,13 @@ function buildParetoData(data: DashboardData, period: PeriodFilter, selectedLine
     equipmentColumn,
     minutesColumn,
     dateColumn,
-    shiftColumn,
   };
 }
 
 export default function DashboardPage() {
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [loadError, setLoadError] = useState("");
-  const [period, setPeriod] = useState<PeriodFilter>("month");
-  const [selectedLine, setSelectedLine] = useState("all");
-  const [selectedShift, setSelectedShift] = useState("all");
+  const [analysisFilters, setAnalysisFilters] = useState<AnalysisFilters>(emptyAnalysisFilters);
 
   useEffect(() => {
     fetch("/api/dashboard-data")
@@ -125,29 +99,36 @@ export default function DashboardPage() {
       .catch((error: unknown) => setLoadError(error instanceof Error ? error.message : "Não foi possível carregar os dados."));
   }, []);
 
-  const lineOptions = useMemo(() => {
-    if (!dashboardData) return [];
-    const lineColumn = findLineColumn(dashboardData.columns);
-    if (!lineColumn) return [];
-    return Array.from(new Set(dashboardData.rows.map((row) => String(row[lineColumn] ?? "").trim()).filter(Boolean))).sort();
-  }, [dashboardData]);
-  const shiftOptions = useMemo(() => {
-    if (!dashboardData) return [];
-    const shiftColumn = dashboardData.columns.find((column) => /turno|shift/.test(column.toLowerCase()));
-    return shiftColumn
-      ? Array.from(new Set(dashboardData.rows.map((row) => String(row[shiftColumn] ?? "").trim()).filter(Boolean))).sort()
-      : [];
-  }, [dashboardData]);
+  const filteredData = useMemo(
+    () => filterAnalysisDataset(dashboardData, analysisFilters),
+    [dashboardData, analysisFilters],
+  );
   const chart = useMemo(
-    () => dashboardData
-      ? buildParetoData(dashboardData, period, selectedLine, selectedShift)
+    () => filteredData
+      ? buildParetoData(filteredData, analysisFilters.line)
       : { data: [], lineColumn: undefined, equipmentColumn: undefined, minutesColumn: undefined },
-    [dashboardData, period, selectedLine, selectedShift],
+    [filteredData, analysisFilters.line],
   );
   const hasChart = chart.data.length > 0;
 
   if (!hasChart) {
-    return <EmptyDashboardPage message={loadError || undefined} />;
+    return (
+      <div className="dashboard-page dashboard-with-brand-bg analysis-dashboard-page">
+        <header className="page-header">
+          <div>
+            <h1>Análises de Manutenção</h1>
+            <p className="page-subtitle">Transforme o histórico da operação em decisões mais precisas.</p>
+          </div>
+          <Link href="/inserirdados" className="button button-primary">Inserir dados</Link>
+        </header>
+        <section className="dashboard-chart-card pareto-card">
+          <AnalysisTabs active="pareto" data={dashboardData} filters={analysisFilters} onApplyFilters={setAnalysisFilters} />
+          <div className="jackknife-empty" role={loadError ? "alert" : "status"}>
+            {loadError || "Nenhum resultado encontrado para os filtros selecionados."}
+          </div>
+        </section>
+      </div>
+    );
   }
 
   return (
@@ -161,29 +142,7 @@ export default function DashboardPage() {
       </header>
 
       <section className="dashboard-chart-card pareto-card" aria-labelledby="chart-title">
-          <AnalysisTabs active="pareto" />
-          <div className="analysis-filters" aria-label="Filtros da análise">
-            <label>Período:
-              <select value={period} onChange={(event) => setPeriod(event.target.value as PeriodFilter)}>
-                <option value="month">Mês</option>
-                <option value="week">Semana</option>
-                <option value="day">Dia</option>
-              </select>
-            </label>
-            <label>Setor:
-              <select value={selectedLine} onChange={(event) => setSelectedLine(event.target.value)}>
-                <option value="all">Todas as linhas</option>
-                {lineOptions.map((line) => <option key={line} value={line}>{line}</option>)}
-              </select>
-            </label>
-            <label>Turno:
-              <select value={selectedShift} onChange={(event) => setSelectedShift(event.target.value)}>
-                <option value="all">Todos os turnos</option>
-                {shiftOptions.map((shift) => <option key={shift} value={shift}>{shift}</option>)}
-              </select>
-            </label>
-            <span>Analisar por: <strong>{selectedLine === "all" ? "Linha" : "Equipamento"}</strong></span>
-          </div>
+          <AnalysisTabs active="pareto" data={dashboardData} filters={analysisFilters} onApplyFilters={setAnalysisFilters} />
           <div className="chart-heading">
             <div>
               <p className="empty-state-kicker">ANÁLISE DE FALHAS</p>
